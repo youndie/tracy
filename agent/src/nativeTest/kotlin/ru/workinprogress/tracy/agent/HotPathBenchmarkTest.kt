@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import ru.workinprogress.tracy.wire.Level
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.TimeSource
 
@@ -21,8 +22,13 @@ import kotlin.time.TimeSource
  * logging. Same mistake as M-26 in a different costume: the harness was the thing being measured.
  * The loop now lives inside a single coroutine.
  *
- * This is an indicator, not a gate. It shares a machine with everything else, so the thresholds
- * have room: an order-of-magnitude regression trips them, a 20% drift does not and should not.
+ * The thresholds are **relative**, and that is the second lesson. The first version asserted wall
+ * clock — under 300 ns suppressed, under 30 µs accepted — calibrated on an idle twenty-core box.
+ * CI runs on a shared four-core runner about 3.4x slower and the build went red on code that had
+ * not changed: an absolute threshold on shared hardware measures the hardware. The ratio between
+ * the two paths does not: 335 on the reference box against 309 on CI, across that 3.4x. So the
+ * accepted path is measured against the suppressed one, and the suppressed path is checked by
+ * what actually matters — that the block is never evaluated — rather than by a stopwatch.
  */
 class HotPathBenchmarkTest {
     private fun agent(level: Level) =
@@ -56,20 +62,23 @@ class HotPathBenchmarkTest {
 
             nanosPerOp(100_000) { log.debug("warm up") }
 
+            var blockRuns = 0
             val perOp =
                 nanosPerOp(2_000_000) {
-                    log.debug("this never happens") { field("payload", "expensive") }
+                    log.debug("this never happens") {
+                        blockRuns++
+                        field("payload", "expensive")
+                    }
                 }
 
             println("M-28 suppressed: $perOp ns/op")
-            // Measured at 30-60 ns on linuxX64. The threshold is a regression guard with room,
-            // not the target: an order of magnitude trips it, ordinary noise does not.
-            assertTrue(
-                perOp < 300,
-                "a suppressed record cost $perOp ns — the level check is no longer " +
-                    "short-circuiting before the block",
-            )
+            // The invariant, stated as itself rather than as a stopwatch reading: the block is
+            // what costs money — a string built, a map filled — and below the level threshold it
+            // must never run at all. This holds on any hardware, which a nanosecond bound does not.
+            assertEquals(0, blockRuns, "the block was evaluated $blockRuns times below the level threshold")
             assertTrue(agent.drainBatch().isEmpty())
+            // Kept as a loose catastrophe guard: 30-60 ns on the reference box, 137 on CI.
+            assertTrue(perOp < 5_000, "a suppressed record cost $perOp ns — something is running that should not")
         }
 
     @Test
@@ -83,6 +92,10 @@ class HotPathBenchmarkTest {
                 nanosPerOp(50_000) { log.info("warm up") }
                 trace.takePending()
 
+                // The baseline is measured here, on this machine, in this run — that is the whole
+                // point. A number carried in from another machine is a number about that machine.
+                val suppressed = nanosPerOp(200_000) { log.trace("below the threshold") }
+
                 val perOp =
                     nanosPerOp(500_000) {
                         log.info("order created") {
@@ -91,13 +104,15 @@ class HotPathBenchmarkTest {
                         }
                     }
 
-                println("M-28 accepted: $perOp ns/op")
-                // Measured at ~12 µs on linuxX64 for a record with two fields. Redaction, the
-                // template counter, the record and the builder all allocate, and allocation is
-                // what dominates here rather than any single rule — see research risk 1.
+                val ratio = perOp / suppressed
+                println("M-28 accepted: $perOp ns/op, suppressed $suppressed ns/op, ratio $ratio")
+                // ~10.5 µs on the reference box and ~42 µs on CI — different machines, same ratio
+                // (335 against 309). Redaction, the template counter, the record and the builder
+                // all allocate, and allocation dominates rather than any single rule (risk 1).
                 assertTrue(
-                    perOp < 30_000,
-                    "an accepted record cost $perOp ns — something on the hot path got heavy",
+                    ratio < 1_000,
+                    "an accepted record cost $ratio times a suppressed one ($perOp ns against " +
+                        "$suppressed ns) — something on the hot path got heavy",
                 )
             }
         }
