@@ -66,5 +66,4 @@ Kotlin 2.4.10, Ktor 3.5.2. Targets: `jvm`, `linuxX64`, `linuxArm64`, `macosArm64
 
 ## License
 
-MIT. The `LICENSE` file is not in the repository yet — it must land before the first published
-image (M-03). Until then the code is, formally, all rights reserved.
+MIT — see [`LICENSE`](LICENSE).

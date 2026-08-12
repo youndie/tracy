@@ -197,7 +197,7 @@ tracy, не ломающее чужие трассировщики.
 
 | Факт | Значение для tracy |
 |---|---|
-| SDK **0.15.0**, артефакты `kotlin-sdk-server-linuxx64`/`-macosarm64`/`-mingwx64` в Maven Central | сайдкар не нужен, MCP живёт в том же бинаре |
+| SDK **0.15.0**; проверено листингом `repo1.maven.org/maven2/io/modelcontextprotocol/`: `kotlin-sdk-server` опубликован под `linuxx64`, **`linuxarm64`**, `macosarm64`, `macosx64`, `mingwx64`, jvm, js, wasm-js | сайдкар не нужен, MCP живёт в том же бинаре. В разборе katcher перечислены три таргета — это была неполная проверка, а не ограничение: `linuxArm64` тоже покрыт, как и у `sqlx4k-sqlite`, и у `kotlin-logging` |
 | Транспорт `mcpStatelessStreamableHttp` поднимается на Ktor CIO | тот же движок, что и у остального сервера |
 | В 0.15.0 типы переехали в `io.modelcontextprotocol.kotlin.sdk.types`; примеры на сайте не компилируются | сигнатуры смотреть в klib/dokka, не в документации |
 | `mcpStatelessStreamableHttp` — расширение **`Application`**, а не `Route`; вложить в `authenticate { }` нельзя | авторизация — перехватчиком пайплайна |

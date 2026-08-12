@@ -8,7 +8,12 @@ Guidance for working in this repository.
 внутри целевого сервиса, нативный сервер с SQLite + FTS5, сквозной `traceparent` и MCP как
 основной путь чтения. Подробности — [README.md](README.md).
 
-**Кода нет.** Заведена документация; что делать дальше — [BACKLOG.md](BACKLOG.md), M0 → M8.
+**M0 закрыта**, содержательного кода нет: каркас, `ServerConfig`, `/health`. Что делать дальше —
+[BACKLOG.md](BACKLOG.md), M1 → M8.
+
+`linuxX64Test` на macOS **`SKIPPED`** — эти тесты гоняются только на Linux-машине по SSH
+(`192.168.1.102`, WSL2). Прогон одного `./gradlew build` на маке не означает, что зелены все
+нативные таргеты.
 
 ## С чего начинать сессию
 
