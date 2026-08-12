@@ -13,8 +13,15 @@
 
   labels: ["dependencies"],
 
-  prConcurrentLimit: 3,
+  // With the build harness merging itself these numbers stop being a throttle on human attention
+  // and become one on runner time, so they can be higher.
+  prConcurrentLimit: 5,
   prHourlyLimit: 0,
+
+  // Use GitHub's own auto-merge: the PR merges the moment required checks go green, without
+  // Renovate having to wake up again and notice. Needs "Allow auto-merge" on in repository
+  // settings — without it Renovate silently falls back to waiting for its next run.
+  platformAutomerge: true,
 
   // Vulnerabilities are the one thing that ignores the schedule.
   vulnerabilityAlerts: {
@@ -49,9 +56,9 @@
       groupName: "kotlinx",
     },
     {
-      description: "Actions and the Gradle wrapper merge themselves: CI on pull_request is check enough",
-      matchManagers: ["github-actions", "gradle-wrapper"],
-      automerge: true,
+      description: "The build harness arrives as one PR, not one per action",
+      matchManagers: ["github-actions"],
+      groupName: "ci actions",
     },
     {
       description: "ktlint is build tooling, not a runtime dependency",
@@ -68,10 +75,21 @@
       automerge: false,
     },
     {
-      description: "Majors always get a human",
+      description: "Majors of anything that ships get a human",
       matchUpdateTypes: ["major"],
       automerge: false,
       labels: ["dependencies", "major"],
+    },
+    // Last, so it wins over the major rule above. This ordering is the whole point: a major of
+    // `actions/checkout` is not the same kind of event as a major of Ktor. The build harness is
+    // not shipped to anyone, and the check that would catch a bad bump is the build itself —
+    // which already ran on the PR. Requiring a human there buys nothing and costs a merge queue
+    // that nobody drains.
+    {
+      description: "The build harness merges itself, majors included: CI on pull_request is the review",
+      matchManagers: ["github-actions", "gradle-wrapper"],
+      automerge: true,
+      automergeType: "pr",
     },
   ],
 }
