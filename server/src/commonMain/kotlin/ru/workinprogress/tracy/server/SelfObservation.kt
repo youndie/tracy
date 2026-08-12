@@ -5,6 +5,7 @@ import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
 import ru.workinprogress.tracy.wire.Redactor
+import ru.workinprogress.tracy.wire.TemplateCount
 
 /**
  * tracy watching itself.
@@ -56,6 +57,20 @@ public class SelfObservation(
                         ?.mapValues { (_, value) -> kotlinx.serialization.json.JsonPrimitive(value) },
             )
 
+        // The counter goes with the record, and that is not decoration. `top_templates` is the
+        // tool that answers "how often", and it reads `template_count` — which the agent fills
+        // for every other service. Writing the record alone made tracy's own events visible in
+        // `search_logs` and invisible in `top_templates`, so "how often does retention sweep"
+        // answered *never* for events that had just happened. Found by pointing a real MCP
+        // client at the deployed server, not by a test.
+        val counter =
+            TemplateCount(
+                windowStart = record.ts - record.ts % MINUTE_MILLIS,
+                template = record.message,
+                level = level,
+                count = 1,
+            )
+
         // Failure here must never propagate: a server that cannot write its own log line still
         // has to accept everyone else's.
         runCatching {
@@ -66,8 +81,10 @@ public class SelfObservation(
                     release = release,
                     seq = seq,
                 ),
-                listOf(record),
+                listOf(record, counter),
             )
         }
     }
 }
+
+private const val MINUTE_MILLIS: Long = 60_000

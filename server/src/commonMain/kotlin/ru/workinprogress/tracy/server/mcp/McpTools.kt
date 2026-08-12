@@ -151,8 +151,18 @@ public class ToolFacade(
             timeline
         } catch (unknown: UnknownEntityKey) {
             // Not an empty result: empty reads as "that never happened" when the truth is
-            // "nobody ever indexed this key".
-            McpRefusal("key is not indexed", "indexed keys: ${unknown.indexed.joinToString(", ")}")
+            // "nobody ever indexed this key". The two cases below read very differently to an
+            // agent, and the message has to separate them — a bare "indexed keys: " with nothing
+            // after it says neither.
+            McpRefusal(
+                "key is not indexed",
+                if (unknown.indexed.isEmpty()) {
+                    "no entity keys are indexed at all: no service has sent a field marked with " +
+                        "`indexed = true` yet, so entity lookup cannot answer anything"
+                } else {
+                    "indexed keys: ${unknown.indexed.joinToString(", ")}"
+                },
+            )
         }
 
     public suspend fun topTemplates(

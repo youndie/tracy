@@ -166,6 +166,23 @@ class ToolFacadeTest {
         }
 
     @Test
+    fun `with nothing indexed at all the refusal says so instead of trailing off`() =
+        runTest {
+            val db = freshDb()
+            IngestRepository(db, clock = { day }).write(
+                BatchHeader("orders-api", "pod-a", "1.0", 1),
+                listOf(LogRecord(day + 1, 1, Level.INFO, "L", "no keys here")),
+            )
+
+            val result = facade(db).getEntity("orderId", "1", since = window.first, until = window.second)
+
+            assertIs<McpRefusal>(result)
+            // The deployed server answered `indexed keys: ` — a label with nothing after it,
+            // which tells an agent neither "wrong key" nor "this feature has no data yet".
+            assertTrue("no entity keys are indexed at all" in result.reason, result.reason)
+        }
+
+    @Test
     fun `an entity timeline is offered and its entries become requestable`() =
         runTest {
             val db = freshDb()

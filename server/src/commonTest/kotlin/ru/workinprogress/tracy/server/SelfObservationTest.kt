@@ -87,6 +87,25 @@ class SelfObservationTest {
         }
 
     @Test
+    fun `its own events are countable and not only searchable`() =
+        runTest {
+            val db = freshDb()
+            val self = observation(db)
+
+            self.log(Level.INFO, "Retention", "retention swept")
+            self.log(Level.INFO, "Retention", "retention swept")
+
+            val stats = QueryRepository(db).templateStats(since = 0, until = Long.MAX_VALUE)
+
+            // Found by pointing a real MCP client at the deployed server: the records showed up
+            // in search_logs and `top_templates` answered nothing, so "how often does retention
+            // sweep" read as *never* for events that had just happened. Counters are what that
+            // tool reads, and the agent fills them for every other service.
+            assertEquals(1, stats.items.size, "expected one template, got ${stats.items}")
+            assertEquals(2L, stats.items.first().count)
+        }
+
+    @Test
     fun `a write failure does not propagate`() =
         runTest {
             val db = freshDb()

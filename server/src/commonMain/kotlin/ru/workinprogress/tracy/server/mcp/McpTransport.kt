@@ -53,13 +53,11 @@ public fun Application.installMcp(
                 finish()
             }
 
-            McpAuthResult.Allowed -> {
-                Unit
-            }
+            // Nothing to do: the call falls through to the transport below.
+            McpAuthResult.Allowed -> {}
         }
     }
 
-    @Suppress("UNUSED_EXPRESSION")
     mcpStatelessStreamableHttp(
         path = MCP_PATH,
         // The SDK's own defence against DNS rebinding. Left on whenever hosts are configured;
