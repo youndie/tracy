@@ -62,6 +62,10 @@
 - [tracy-agent](services/tracy-agent.md) — KMP-плагин внутри целевого сервиса
 - [tracy-server](services/tracy-server.md) — Kotlin/Native + SQLite + MCP
 
+**Design**
+- [design-brief](design/brief.md) — бриф на веб-интерфейс (Compose Wasm). Макета ещё нет;
+  реализация UI отложена (research §Р9, M-91), бриф опережает её намеренно.
+
 **Бэклог** — [../BACKLOG.md](../BACKLOG.md), задачи `M-NN` по вехам M0…M8.
 
 ## Соглашения
