@@ -86,6 +86,14 @@ public class TracyAgent(
 
     public fun now(): Long = clock()
 
+    /**
+     * Redaction for text that is not a log message but still ends up stored — a span name, for
+     * instance. Same rule, same reason: a credential in low-cardinality structure that reads as
+     * trusted is worse than one in a record body (research 1.10).
+     */
+    @PublishedApi
+    internal fun redactText(text: String): String = config.redactor.redactMessage(text).text
+
     @PublishedApi
     internal fun recordSpan(
         trace: TracyTraceContext,
