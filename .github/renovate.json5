@@ -18,10 +18,13 @@
   prConcurrentLimit: 5,
   prHourlyLimit: 0,
 
-  // Use GitHub's own auto-merge: the PR merges the moment required checks go green, without
-  // Renovate having to wake up again and notice. Needs "Allow auto-merge" on in repository
-  // settings — without it Renovate silently falls back to waiting for its next run.
-  platformAutomerge: true,
+  // Renovate merges the pull request itself rather than arming GitHub's auto-merge. Measured,
+  // not chosen: `enablePullRequestAutoMerge` is refused here with "Protected branch rules not
+  // configured for this branch" and "Pull request is in clean status" — GitHub will not arm
+  // auto-merge on a branch with no required checks, because there is nothing for it to wait for.
+  // Turning that on would mean branch protection on `main`, and direct pushes to `main` are the
+  // established way of working in these repositories.
+  platformAutomerge: false,
 
   // Vulnerabilities are the one thing that ignores the schedule.
   vulnerabilityAlerts: {
