@@ -48,6 +48,13 @@ public fun Route.queryRoutes(
                     ?: return@get call.badRequest("unknown level: $name")
             }
 
+        // Checked here rather than left to the repository: there is no StatusPages in this server,
+        // so an exception thrown deeper would reach the caller as a 500 for a plain input mistake.
+        val text = call.request.queryParameters["q"]
+        if (text != null && text.trim().length < 3) {
+            return@get call.badRequest("q needs at least 3 characters: the index is trigram-based")
+        }
+
         val result =
             query.searchLogs(
                 service = call.request.queryParameters["service"],
@@ -56,6 +63,7 @@ public fun Route.queryRoutes(
                 since = since,
                 until = until,
                 templateId = call.request.queryParameters["templateId"]?.toLongOrNull(),
+                query = text,
                 exceptionClass = call.request.queryParameters["exceptionClass"],
                 traceId = call.request.queryParameters["traceId"],
                 entityKey = call.request.queryParameters["entityKey"],
@@ -135,7 +143,7 @@ public fun Route.queryRoutes(
     }
 }
 
-private suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
+internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
     TransactionContext.withCurrent(db) {
         val partitions =
             fetchAll("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'log_entry_%'")

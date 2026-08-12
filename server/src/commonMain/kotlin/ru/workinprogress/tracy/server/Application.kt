@@ -17,6 +17,8 @@ import ru.workinprogress.tracy.server.db.EntityKeyBudget
 import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.server.db.migrateDb
 import ru.workinprogress.tracy.server.ingest.ingestRoutes
+import ru.workinprogress.tracy.server.mcp.ToolFacade
+import ru.workinprogress.tracy.server.mcp.installMcp
 import ru.workinprogress.tracy.server.query.EntityRepository
 import ru.workinprogress.tracy.server.query.QueryRepository
 import ru.workinprogress.tracy.server.query.queryRoutes
@@ -85,6 +87,13 @@ public fun Application.module(
             maxBytes = config.maxDbBytes,
             clock = { currentTimeMillis() },
         )
+
+    // Installed outside `routing`: the SDK extension puts up its own routing and cannot be nested.
+    // No token, no MCP at all — absence of configuration yields a closed state (research D9).
+    installMcp(
+        config,
+        ToolFacade(QueryRepository(db), TraceRepository(db), SpanSearchRepository(db), EntityRepository(db)),
+    )
 
     routing {
         get("/health") {

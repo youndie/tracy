@@ -74,6 +74,9 @@ public class QueryRepository(
     private val db: ISQLite,
     private val maxLimit: Int = 200,
 ) {
+    /** The same summary the HTTP endpoint serves, so MCP and HTTP cannot drift apart. */
+    public suspend fun listServices(): List<ServiceSummary> = serviceSummaries(db)
+
     public suspend fun searchLogs(
         service: String? = null,
         instance: String? = null,
@@ -81,6 +84,7 @@ public class QueryRepository(
         since: Long,
         until: Long,
         templateId: Long? = null,
+        query: String? = null,
         exceptionClass: String? = null,
         traceId: String? = null,
         entityKey: String? = null,
@@ -91,6 +95,15 @@ public class QueryRepository(
             val capped = limit.coerceIn(1, maxLimit)
             val items = mutableListOf<LogHit>()
             var seen = 0
+
+            // Text search resolves to template ids first and never touches the entry tables. That
+            // is the whole point of D5: the index carries one row per distinct message shape, not
+            // one per record, so the cost of a text search does not grow with volume. It also
+            // means a search matches the developer's template, not values an outsider supplied.
+            val matched = query?.let { matchingTemplates(this, it) }
+            if (matched != null && matched.isEmpty()) {
+                return@withCurrent LogSearchResult(emptyList(), truncated = false, remaining = 0)
+            }
 
             for (day in daysBetween(this, since, until)) {
                 val sql =
@@ -118,6 +131,7 @@ public class QueryRepository(
                         if (instance != null) append("AND i.name = :instance ")
                         if (level != null) append("AND e.level = :level ")
                         if (templateId != null) append("AND e.template_id = :templateId ")
+                        if (matched != null) append("AND e.template_id IN (${matched.joinToString(",")}) ")
                         if (traceId != null) append("AND e.trace_id = unhex(:traceId) ")
                         if (entityValue != null) append("AND r.value = :entityValue ")
                         append("ORDER BY e.ts, e.seq LIMIT ${capped + 1}")
@@ -178,6 +192,33 @@ public class QueryRepository(
                 remaining = (seen - items.size).coerceAtLeast(0),
             )
         }
+
+    /**
+     * Template ids whose text matches, via the FTS index rather than a scan.
+     *
+     * The query is bound as a single quoted phrase, so text a caller supplies cannot be read as
+     * FTS syntax: `foo OR bar` searches for those nine characters, and a stray quote is a
+     * character rather than a parse error.
+     */
+    private suspend fun matchingTemplates(
+        executor: TransactionContext,
+        query: String,
+    ): List<Long> {
+        val trimmed = query.trim()
+        // A trigram index cannot answer anything shorter than a trigram. Saying so is better than
+        // returning nothing, which reads as "no such message exists".
+        require(trimmed.length >= 3) { "`query` needs at least 3 characters: the index is trigram-based" }
+
+        val phrase = "\"" + trimmed.replace("\"", "\"\"") + "\""
+        return executor
+            .fetchAll(
+                Statement
+                    .create("SELECT rowid FROM template_fts WHERE template_fts MATCH :q LIMIT 500")
+                    .apply { bind("q", phrase) },
+            ).getOrThrow()
+            .rows
+            .map { it.get(0).asLong() }
+    }
 
     /**
      * Frequencies come from the agent's counters, never from stored rows. Counting rows would
@@ -271,31 +312,67 @@ public class QueryRepository(
             .rows
             .map { TemplatePoint(it.get(0).asLong(), it.get(1).asLong()) }
 
+    /**
+     * Field values, loaded only when somebody has earned them. Phase one of the MCP contract never
+     * calls this — it is the whole reason values live behind a separate call (research D8).
+     */
+    public suspend fun fieldValues(entryIds: List<Long>): Map<Long, Map<String, String>> =
+        TransactionContext.withCurrent(db) {
+            if (entryIds.isEmpty()) return@withCurrent emptyMap()
+            val ids = entryIds.joinToString(",")
+            val out = mutableMapOf<Long, Map<String, String>>()
+
+            for (day in allPartitions(this)) {
+                fetchAll("SELECT id, fields FROM log_entry_$day WHERE id IN ($ids)")
+                    .getOrThrow()
+                    .rows
+                    .forEach { row ->
+                        val json = row.get(1).asStringOrNull() ?: return@forEach
+                        out[row.get(0).asLong()] = json.jsonEntries()
+                    }
+            }
+            out
+        }
+
+    private suspend fun allPartitions(executor: TransactionContext): List<String> =
+        executor
+            .fetchAll("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'log_entry_%'")
+            .getOrThrow()
+            .rows
+            .map { it.get(0).asString().removePrefix("log_entry_") }
+
+    /**
+     * Days to look in: the existing partitions that fall inside the window.
+     *
+     * The first version walked from `since` to `until` a day at a time, which is fine until a
+     * caller passes an open-ended window — `until = Long.MAX_VALUE` turned into a hundred billion
+     * iterations and hung the test that found it. Intersecting with what exists is bounded by the
+     * number of partitions, which retention already bounds.
+     */
     private suspend fun daysBetween(
         executor: TransactionContext,
         since: Long,
         until: Long,
     ): List<String> {
-        val wanted = mutableSetOf<String>()
-        var cursor = since
-        while (cursor <= until) {
-            wanted += dayKey(cursor)
-            cursor += 86_400_000L
-        }
-        wanted += dayKey(until)
+        val from = dayKey(since.coerceAtLeast(0))
+        val to = dayKey(until.coerceAtMost(MAX_REASONABLE_MILLIS))
 
-        val existing =
-            executor
-                .fetchAll(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'log_entry_%'",
-                ).getOrThrow()
-                .rows
-                .map { it.get(0).asString().removePrefix("log_entry_") }
-                .toSet()
+        return allPartitions(executor).filter { it in from..to }.sorted()
+    }
 
-        return wanted.filter { it in existing }.sorted()
+    private companion object {
+        /** Year 2100 — anything beyond is a caller saying "no upper bound". */
+        const val MAX_REASONABLE_MILLIS = 4_102_444_800_000L
     }
 }
+
+private fun String.jsonEntries(): Map<String, String> =
+    runCatching {
+        (
+            ru.workinprogress.tracy.wire.TracyJson
+                .parseToJsonElement(this) as kotlinx.serialization.json.JsonObject
+        ).mapValues { (_, value) -> (value as kotlinx.serialization.json.JsonPrimitive).content }
+    }.getOrDefault(emptyMap())
 
 private fun String.jsonKeys(): List<String> =
     runCatching {

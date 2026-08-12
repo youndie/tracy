@@ -2,19 +2,20 @@
 id: mcp-tools
 title: MCP-инструменты tracy
 type: api_endpoints
-status: draft
+status: active
 services:
   - tracy-server
 contract_source:
-  - ":server:ru.workinprogress.tracy.mcp.Tools"
+  - ":server:ru.workinprogress.tracy.server.mcp.RegisterTools"
 parent_feature: feature-mcp-access
 ---
 
 # API: MCP-инструменты
 
-> `status: draft` — кода нет. Транспорт и авторизация целиком повторяют katcher, где это работает
-> в проде (research §1.8); новое здесь — состав инструментов и двухфазная выдача применительно
-> к логам.
+> `status: active` — написано и проверено на живом сокете (M6): `initialize`, `tools/list`,
+> `tools/call` ходят через настоящий транспорт SDK, не через заглушку. Чего **не** было: ни одного
+> подключения настоящим MCP-клиентом — это M-67, вместе с выкаткой. В katcher именно этот шаг нашёл
+> то, чего не нашли ни тесты, ни curl.
 
 Транспорт — `mcpStatelessStreamableHttp` на Ktor CIO, эндпоинт `POST /mcp`. Read-only инструментам
 сессия не нужна, поэтому stateless.
@@ -163,12 +164,15 @@ self-hosted статический токен — прагматичный вы�
 
 | Что | Где |
 |---|---|
-| Транспорт, bearer, `allowedHosts`, шим `protocolVersion` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/mcp/McpEndpoint.kt` |
-| Определения инструментов | `server/src/commonMain/kotlin/ru/workinprogress/tracy/mcp/Tools.kt` |
-| Статический скрин | `server/src/commonMain/kotlin/ru/workinprogress/tracy/mcp/LogTrust.kt` |
+| Bearer, `allowedHosts` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/McpEndpoint.kt` |
+| Установка транспорта SDK | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/McpTransport.kt` |
+| Регистрация инструментов и схемы | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/RegisterTools.kt` |
+| Поведение инструментов без транспорта | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/McpTools.kt` |
+| Статический скрин | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/LogTrust.kt` |
+| Двухфазный гейт | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/EntryContentGate.kt` |
 | Рабочий образец всего перечисленного | `katcher/server/src/commonMain/kotlin/ru/workinprogress/katcher/mcp/` |
 
-## Грабли SDK 0.15.0 (проверены в katcher)
+## Грабли SDK 0.15.0 (проверены в tracy на живом сокете)
 
 * Типы живут в `io.modelcontextprotocol.kotlin.sdk.types`, а не `…sdk`. **Примеры на сайте не
   компилируются**; сигнатуры смотреть в klib (`default/linkdata/`) или в dokka.
@@ -176,7 +180,11 @@ self-hosted статический токен — прагматичный вы�
   (не `Tool.Input`), хендлер — `suspend ClientConnection.(CallToolRequest) -> CallToolResult`.
 * `mcpStatelessStreamableHttp` — расширение `Application`, не `Route`; сам ставит роутинг, внутрь
   `authenticate { }` не вкладывается.
-* **`protocolVersion` пропадает из ответа**, когда согласованная версия совпадает с дефолтом
-  `InitializeResult`: kotlinx.serialization не пишет дефолты. Ломается любой актуальный клиент.
-  Обход — подменять версию **в запросе** на `2025-06-18`. Шим временный, убрать при исправлении
-  в SDK.
+* Блок `mcpStatelessStreamableHttp` — **фабрика**, возвращающая `Server`, а не ресивер на нём.
+* **`protocolVersion` не пропадает.** Грабля унаследована из katcher и записана здесь как факт;
+  проверка на 0.15.0 через `mcpStatelessStreamableHttp` показала поле в ответе для обеих версий —
+  и `2025-06-18`, и дефолтной `2025-11-25`. Шим, написанный по этому описанию, **удалён**: обход
+  болезни, которой нет, живёт дольше самой болезни и стоит дороже. Остался тест
+  `McpTransportTest` — «версия возвращается», чтобы регрессия была падением, а не потерянным днём.
+  Что именно ломалось в katcher — другой транспорт или другая версия — не выяснено; здесь не
+  воспроизводится.
