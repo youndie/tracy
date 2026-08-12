@@ -7,6 +7,7 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import ru.workinprogress.tracy.server.template.Normalizer
 import ru.workinprogress.tracy.wire.BatchLine
 import ru.workinprogress.tracy.wire.EntityRef
 import ru.workinprogress.tracy.wire.LogRecord
@@ -19,6 +20,9 @@ public data class BatchHeader(
     val instance: String,
     val release: String?,
     val seq: Long,
+    /** Bytes the service produced since the last batch — before sampling, before dropping. */
+    val producedBytes: Long = 0,
+    val dropped: Long = 0,
 )
 
 public data class WriteResult(
@@ -73,6 +77,26 @@ public class IngestRepository(
                 accepted++
             }
 
+            // What the service produced, as opposed to what survived. Reporting only the latter
+            // would answer "how much did tracy decide to keep" when the question is "who is
+            // noisy" (research D13).
+            if (header.producedBytes > 0 || header.dropped > 0) {
+                execute(
+                    Statement
+                        .create(
+                            """INSERT INTO service_produced (service_id, minute, bytes, dropped)
+                               VALUES (:service, :minute, :bytes, :dropped)
+                               ON CONFLICT(service_id, minute)
+                               DO UPDATE SET bytes = bytes + :bytes, dropped = dropped + :dropped""",
+                        ).apply {
+                            bind("service", serviceId)
+                            bind("minute", now / 60_000 * 60_000)
+                            bind("bytes", header.producedBytes)
+                            bind("dropped", header.dropped)
+                        },
+                )
+            }
+
             execute(
                 Statement
                     .create(
@@ -115,7 +139,12 @@ public class IngestRepository(
         val day = dayKey(record.ts)
         partitions.ensure(executor, day)
 
-        val templateId = dictionaries.templateId(executor, record.message)
+        // A structured record is its own template; an interpolated one is masked into one.
+        // Grouping only — redaction already ran in the agent, and doing it in the other order
+        // would put a secret into the template table (research 1.10).
+        val templateText =
+            if (record.isUntrustedMessage) Normalizer.normalize(record.message) else record.message
+        val templateId = dictionaries.templateId(executor, templateText)
         val exceptionClassId =
             record.exception?.className?.let { dictionaries.exceptionClassId(executor, it) }
 

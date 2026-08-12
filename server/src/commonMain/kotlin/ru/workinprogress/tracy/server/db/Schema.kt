@@ -86,7 +86,26 @@ internal val migrationV1: List<String> =
 );""",
     )
 
-internal val allMigrations: List<List<String>> = listOf(migrationV1)
+/**
+ * What the service *produced*, before sampling and before the buffer dropped anything.
+ *
+ * Stored separately from everything else because it answers a different question: not "how much
+ * did we decide to keep" but "who is noisy" (research D13). Measuring the stored rows instead
+ * would report tracy's own sampling policy back at the operator.
+ */
+internal val migrationV2: List<String> =
+    listOf(
+        """CREATE TABLE service_produced (
+    service_id INTEGER NOT NULL REFERENCES service(id),
+    minute INTEGER NOT NULL,
+    bytes INTEGER NOT NULL,
+    dropped INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (service_id, minute)
+);""",
+        """CREATE INDEX service_produced_minute ON service_produced (minute);""",
+    )
+
+internal val allMigrations: List<List<String>> = listOf(migrationV1, migrationV2)
 
 /**
  * Daily partitions. Only at this granularity do both retention and the size cap reduce to

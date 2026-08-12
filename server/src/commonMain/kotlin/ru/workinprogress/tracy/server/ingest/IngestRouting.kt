@@ -57,6 +57,8 @@ public fun Route.ingestRoutes(
                 instance = instance,
                 release = call.request.header(IngestHeaders.RELEASE),
                 seq = seq,
+                producedBytes = call.request.header(IngestHeaders.PRODUCED)?.toLongOrNull() ?: 0,
+                dropped = call.request.header(IngestHeaders.DROPPED)?.toLongOrNull() ?: 0,
             )
 
         val result =

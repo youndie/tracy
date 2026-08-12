@@ -17,9 +17,14 @@ import ru.workinprogress.tracy.server.db.EntityKeyBudget
 import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.server.db.migrateDb
 import ru.workinprogress.tracy.server.ingest.ingestRoutes
+import ru.workinprogress.tracy.server.query.EntityRepository
+import ru.workinprogress.tracy.server.query.QueryRepository
+import ru.workinprogress.tracy.server.query.queryRoutes
+import ru.workinprogress.tracy.server.retention.Retention
 import ru.workinprogress.tracy.server.trace.SpanSearchRepository
 import ru.workinprogress.tracy.server.trace.TraceRepository
 import ru.workinprogress.tracy.server.trace.traceRoutes
+import ru.workinprogress.tracy.wire.TracyJson
 
 public fun main() {
     val config = ServerConfig.fromEnv()
@@ -72,10 +77,24 @@ public fun Application.module(
             clock = { currentTimeMillis() },
         )
     val repository = IngestRepository(db, budget = budget, clock = { currentTimeMillis() })
+    val retention =
+        Retention(
+            db = db,
+            retentionDays = config.retentionDays,
+            countsRetentionDays = config.countsRetentionDays,
+            maxBytes = config.maxDbBytes,
+            clock = { currentTimeMillis() },
+        )
 
     routing {
-        get("/health") { call.respondText("ok") }
+        get("/health") {
+            // Not liveness alone: the size cap and eviction are the two things an operator finds
+            // out about too late otherwise.
+            val state = retention.state()
+            call.respondText(TracyJson.encodeToString(state), io.ktor.http.ContentType.Application.Json)
+        }
         ingestRoutes(config, repository) { service -> budget.suppressedFor(service) }
         traceRoutes(TraceRepository(db), SpanSearchRepository(db))
+        queryRoutes(db, QueryRepository(db), EntityRepository(db), budget)
     }
 }

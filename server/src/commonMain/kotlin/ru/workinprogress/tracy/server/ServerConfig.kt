@@ -14,6 +14,10 @@ class ServerConfig(
     /** Budget of entity references per minute per (service, key) — the breaker of research D15. */
     val entityRefsPerMinute: Int = 2000,
     val suppressedTtlDays: Long = 14,
+    /** One retention, not one per level: two ages in one table cannot both be a DROP (research D6). */
+    val retentionDays: Int = 30,
+    val countsRetentionDays: Int = 90,
+    val maxDbBytes: Long = 4L * 1024 * 1024 * 1024,
     /** MCP is not installed at all when this is null: closed by default, not open. */
     val mcpToken: String? = null,
     val mcpAllowedHosts: List<String> = emptyList(),
@@ -39,6 +43,9 @@ class ServerConfig(
                 maxBatchBytes = read("TRACY_MAX_BATCH_BYTES")?.toIntOrNull() ?: (1024 * 1024),
                 entityRefsPerMinute = read("TRACY_ENTITY_REFS_PER_MINUTE")?.toIntOrNull() ?: 2000,
                 suppressedTtlDays = read("TRACY_SUPPRESSED_TTL_DAYS")?.toLongOrNull() ?: 14,
+                retentionDays = read("TRACY_RETENTION_DAYS")?.toIntOrNull() ?: 30,
+                countsRetentionDays = read("TRACY_RETENTION_COUNTS_DAYS")?.toIntOrNull() ?: 90,
+                maxDbBytes = read("TRACY_DB_MAX_BYTES")?.toLongOrNull() ?: (4L * 1024 * 1024 * 1024),
                 mcpToken = read("TRACY_MCP_TOKEN")?.takeIf { it.isNotBlank() },
                 mcpAllowedHosts =
                     read("TRACY_MCP_ALLOWED_HOSTS")
