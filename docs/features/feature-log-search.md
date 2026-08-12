@@ -60,7 +60,7 @@ tags: [sqlite, fts5, retention]
 |---|---|
 | `log_entry_YYYYMMDD` | записи; **суточная** партиция, чтобы и ретенция, и вытеснение были `DROP TABLE` |
 | `span_YYYYMMDD` | спаны: `trace_id, span_id, parent_span_id, kind, name, ts, duration_ms, status, error, fields`; та же нарезка |
-| `log_template` | текст шаблона; **сообщение хранится здесь, а не в каждой записи** |
+| `log_template` | текст шаблона; **сообщение хранится здесь, а не в каждой записи**. Инвариант: сюда не попадает ничего, не прошедшее редакцию (research §1.10) |
 | `template_count` | `(service_id, template_id, level, release, minute, count)` — счётчики от агента, **точные при любом семплировании** (research §Р13) |
 | `entity_ref_YYYYMMDD` | ссылки на сущности — [feature-entity-search](feature-entity-search.md) |
 | `template_fts` | FTS5 над `log_template.text`, `contentless_delete`, токенайзер `trigram` |
