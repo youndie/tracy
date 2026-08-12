@@ -35,17 +35,37 @@ public class Redactor(
     private val valuePatterns: List<Regex> = DEFAULT_VALUE_PATTERNS,
     private val redactMessageText: Boolean = true,
 ) {
+    /**
+     * Every message in every service that installs tracy goes through this, so the shape of the
+     * loop matters as much as the rules in it.
+     *
+     * Each rule is gated by a **cheap substring test**. Measuring the hot path (M-28) showed why:
+     * running the regexes unconditionally cost ~9 µs for an ordinary message and ~49 µs for one
+     * containing a URL, on Kotlin/Native where regex is expensive. Almost no log line contains a
+     * URL, a `Bearer` or a query string, so a `contains` that fails in nanoseconds skips the whole
+     * cost for the common case. The rules themselves are unchanged — what changed is that they
+     * only run when they could possibly match.
+     */
     public fun redactMessage(message: String): RedactedText {
         if (!redactMessageText) return RedactedText(message, changed = false)
 
         var out = message
         for (rule in MESSAGE_RULES) {
-            out = rule.first.replace(out, rule.second)
+            if (!rule.applies(out)) continue
+            out = rule.pattern.replace(out, rule.replacement)
         }
         for (rx in valuePatterns) {
             out = rx.replace(out, REDACTED)
         }
         return RedactedText(out, changed = out != message)
+    }
+
+    private class MessageRule(
+        val pattern: Regex,
+        val replacement: String,
+        private val trigger: (String) -> Boolean,
+    ) {
+        fun applies(text: String): Boolean = trigger(text)
     }
 
     public fun redactFields(fields: Fields?): RedactedFields {
@@ -70,9 +90,17 @@ public class Redactor(
         return RedactedFields(out, names)
     }
 
+    /**
+     * Same reasoning as [redactMessage]: this runs for every field of every record, and the five
+     * name patterns cost more than everything else on the path put together (M-28). All of them
+     * contain one of a handful of words, so a substring gate skips the regexes for names like
+     * `orderId` — which is what almost every field is called.
+     */
     private fun isSensitiveName(name: String): Boolean {
         val lower = name.lowercase()
-        return lower in fieldNames || fieldNamePatterns.any { it.containsMatchIn(lower) }
+        if (lower in fieldNames) return true
+        if (NAME_HINTS.none { it in lower }) return false
+        return fieldNamePatterns.any { it.containsMatchIn(lower) }
     }
 
     public companion object {
@@ -90,6 +118,9 @@ public class Redactor(
                 "session",
             )
 
+        /** Every pattern in [DEFAULT_FIELD_NAME_PATTERNS] contains one of these. */
+        private val NAME_HINTS = listOf("key", "token", "secret")
+
         public val DEFAULT_FIELD_NAME_PATTERNS: List<Regex> =
             listOf(
                 Regex("""api[_-]?key"""),
@@ -99,35 +130,56 @@ public class Redactor(
                 Regex("""private[_-]?key"""),
             )
 
-        /** Shapes that identify themselves regardless of where they appear. */
-        public val DEFAULT_VALUE_PATTERNS: List<Regex> =
-            listOf(
-                // JWT
-                Regex("""eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}(\.[A-Za-z0-9_-]+)?"""),
-                // Card numbers, 13-19 digits with optional separators
-                Regex("""\b(?:\d[ -]?){13,19}\b"""),
-            )
+        /**
+         * Extra unguarded patterns a host can add. Empty by default: the shapes tracy ships with
+         * live in [MESSAGE_RULES], where each one is gated by a cheap test. Anything added here
+         * runs on **every** message of **every** service, so add sparingly.
+         */
+        public val DEFAULT_VALUE_PATTERNS: List<Regex> = emptyList()
 
         /**
          * Message-text rules, applied in order. Each keeps the surrounding structure readable —
          * a log line whose URL turned into `***` is much less useful than one that still shows
          * the host and the endpoint.
          */
-        private val MESSAGE_RULES: List<Pair<Regex, String>> =
+        private val MESSAGE_RULES: List<MessageRule> =
             listOf(
                 // scheme://user:password@host  ->  scheme://***@host
-                Regex("""(://)[^/\s:@]+:[^/\s@]+@""") to "$1$REDACTED@",
+                MessageRule(
+                    Regex("""(://)[^/\s:@]+:[^/\s@]+@"""),
+                    "$1$REDACTED@",
+                ) { "://" in it && '@' in it },
                 // Bearer <token>
-                Regex("""(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}""") to "$1$REDACTED",
+                MessageRule(
+                    Regex("""(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}"""),
+                    "$1$REDACTED",
+                ) { it.contains("earer", ignoreCase = true) },
                 // /bot123456:AAF...  — an id:secret path segment. Exactly the shape found in
                 // production logs, and common far beyond Telegram.
-                Regex("""(/[^/\s]*?:)[A-Za-z0-9_-]{20,}""") to "$1$REDACTED",
+                MessageRule(
+                    Regex("""(/[^/\s]*?:)[A-Za-z0-9_-]{20,}"""),
+                    "$1$REDACTED",
+                ) { '/' in it && ':' in it },
                 // ?token=... &api_key=... — masks the value, keeps the parameter name visible
-                Regex("""(?i)([?&](?:api[_-]?key|access[_-]?token|token|secret|password|key|auth)=)[^&\s]+""")
-                    to "$1$REDACTED",
+                MessageRule(
+                    Regex("""(?i)([?&](?:api[_-]?key|access[_-]?token|token|secret|password|key|auth)=)[^&\s]+"""),
+                    "$1$REDACTED",
+                ) { ('?' in it || '&' in it) && '=' in it },
                 // A long opaque path segment: mixed letters and digits, no dots, 32+ chars
-                Regex("""(/)(?=[^/\s]{32,}(?:/|$|\?))(?=[^/\s]*[A-Za-z])(?=[^/\s]*\d)[A-Za-z0-9_-]+""")
-                    to "$1$REDACTED",
+                MessageRule(
+                    Regex("""(/)(?=[^/\s]{32,}(?:/|$|\?))(?=[^/\s]*[A-Za-z])(?=[^/\s]*\d)[A-Za-z0-9_-]+"""),
+                    "$1$REDACTED",
+                ) { '/' in it && it.length >= 33 },
+                // JWT, wherever it appears
+                MessageRule(
+                    Regex("""eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}(\.[A-Za-z0-9_-]+)?"""),
+                    REDACTED,
+                ) { "eyJ" in it },
+                // Card numbers, 13-19 digits with optional separators
+                MessageRule(
+                    Regex("""\b(?:\d[ -]?){13,19}\b"""),
+                    REDACTED,
+                ) { it.count { c -> c.isDigit() } >= 13 },
             )
     }
 }
