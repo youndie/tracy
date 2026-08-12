@@ -20,7 +20,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # Kotlin/Native cache: LLVM and the sysroots weigh hundreds of megabytes and are
       # downloaded once. Without it every CI run spends minutes on that alone.
