@@ -9,6 +9,8 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okio.FileSystem
 import okio.Path.Companion.toPath
@@ -26,6 +28,7 @@ import ru.workinprogress.tracy.server.retention.Retention
 import ru.workinprogress.tracy.server.trace.SpanSearchRepository
 import ru.workinprogress.tracy.server.trace.TraceRepository
 import ru.workinprogress.tracy.server.trace.traceRoutes
+import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.TracyJson
 
 public fun main() {
@@ -88,6 +91,39 @@ public fun Application.module(
             clock = { currentTimeMillis() },
         )
 
+    // Self-observation. Written straight to the repository — see SelfObservation for why the
+    // loopback version was reverted.
+    val self =
+        config.selfService?.let {
+            SelfObservation(repository, it, config.instanceId, release = null, clock = { currentTimeMillis() })
+        }
+    if (self != null) {
+        launch { self.log(Level.INFO, "Boot", "tracy started", mapOf("retentionDays" to config.retentionDays.toString())) }
+    }
+
+    // Retention has to be *run*, not merely configured. Until M7 `enforce()` had no caller: the
+    // sweep was written, tested and never scheduled, which means the size cap could not have
+    // fired and the disk would have filled with the feature reporting itself as present.
+    launch {
+        while (true) {
+            val state = runCatching { retention.enforce() }.getOrNull()
+            if (state != null && self != null) {
+                // A sweep is rare by construction — once an hour — so logging it cannot feed
+                // the loop that logging every batch would.
+                self.log(
+                    Level.INFO,
+                    "Retention",
+                    "retention swept",
+                    mapOf(
+                        "liveDays" to state.liveDays.size.toString(),
+                        "databaseBytes" to state.databaseBytes.toString(),
+                    ),
+                )
+            }
+            delay(RETENTION_INTERVAL_MILLIS)
+        }
+    }
+
     // Installed outside `routing`: the SDK extension puts up its own routing and cannot be nested.
     // No token, no MCP at all — absence of configuration yields a closed state (research D9).
     installMcp(
@@ -107,3 +143,6 @@ public fun Application.module(
         queryRoutes(db, QueryRepository(db), EntityRepository(db), budget)
     }
 }
+
+/** Hourly. Partitions are daily, so anything finer only re-checks the size cap. */
+private const val RETENTION_INTERVAL_MILLIS: Long = 60 * 60 * 1000

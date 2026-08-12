@@ -1,0 +1,61 @@
+# The image is public on ghcr, like katcher's and metrik's, so there is no pull secret here
+# and none is needed.
+registry:
+  server: ghcr.io
+  org: youndie
+
+# The public hostname. Required: the MCP transport refuses any Host it was not told about,
+# and the ingress rules match on it.
+hostname: ""
+
+server:
+  image: tracy
+  version: 0.1.0
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "1"
+      # SQLite here is not a client of a database server — it *is* the database, and the page
+      # cache lives in this process. 64Mi is what katcher needs; tracy holds more.
+      memory: "256Mi"
+
+# Ingest key for `POST /ingest`. The server refuses to start without one, so unlike the MCP
+# token this is not optional — an empty value fails the deploy rather than opening the endpoint.
+# Supply it at deploy time (--set ingest.key=...) from a CI secret; never commit a value.
+ingest:
+  key: ""
+
+# Bearer token for the MCP endpoint. Empty means the endpoint is not mounted, the Secret is not
+# created, and the ingress bypass is not rendered: the feature is off, not open.
+mcp:
+  token: ""
+
+db:
+  size: 8Gi
+  class: "local-path"
+  path: /data
+  name: tracy.db
+  # The server evicts oldest-day-first when the file passes this. Kept below the volume size on
+  # purpose: a full volume is a write failure, an exceeded budget is a planned drop.
+  maxBytes: 6442450944
+
+retention:
+  # Bodies are dropped after this many days...
+  days: 30
+  # ...counters are kept longer, because they are what "is this new?" is answered from and they
+  # cost a row per template per service per day rather than a row per record.
+  countsDays: 90
+
+# Self-observation: tracy's own logs go to tracy, over the real ingest path rather than an
+# in-process shortcut. Empty disables it. See research 1.5 — a localhost endpoint needs no name
+# resolution, so this does NOT exercise what M-29 covers.
+selfService: ""
+
+traefik:
+  certResolver: cloudflare
+  authMiddleware:
+    name: ""
+    namespace: ""
+  middlewares: []

@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracy-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: tracy-server
+spec:
+  replicas: 1
+  # One writer, one volume. `Recreate` rather than the default rolling update: two pods would
+  # both open the same SQLite file, and WAL across two processes on a network volume is how a
+  # database gets corrupted rather than how it stays available.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tracy-server
+  template:
+    metadata:
+      labels:
+        app: tracy-server
+    spec:
+      containers:
+        - name: tracy-server
+          image: "{{ .Values.registry.server }}/{{ .Values.registry.org }}/{{ .Values.server.image }}:{{ .Values.server.version }}"
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TRACY_DB_PATH
+              value: {{ .Values.db.path }}/{{ .Values.db.name }}
+            - name: TRACY_DB_MAX_BYTES
+              value: {{ .Values.db.maxBytes | quote }}
+            - name: TRACY_RETENTION_DAYS
+              value: {{ .Values.retention.days | quote }}
+            - name: TRACY_RETENTION_COUNTS_DAYS
+              value: {{ .Values.retention.countsDays | quote }}
+            # From the Secret, not inlined: an inlined value shows up in
+            # `kubectl get deployment -o yaml` and in Helm release history.
+            - name: TRACY_INGEST_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tracy-keys
+                  key: ingest
+            {{- if .Values.selfService }}
+            - name: TRACY_SELF_SERVICE
+              value: {{ .Values.selfService | quote }}
+            {{- end }}
+            {{- if .Values.mcp.token }}
+            - name: TRACY_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tracy-keys
+                  key: mcp
+            # The transport refuses any Host it was not told about and defaults to localhost, so
+            # the public hostname has to be declared or every request is rejected. This failure
+            # cannot be reproduced on a developer machine, where the host always is localhost.
+            - name: TRACY_MCP_ALLOWED_HOSTS
+              value: {{ .Values.hostname | quote }}
+            {{- end }}
+          # `/health` reports retention state as well as liveness, and that is the point: a
+          # server that is up while silently evicting everything is the failure an operator
+          # finds out about too late.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            # Generous on purpose: a slow reply here means the single writer is busy, and
+            # restarting the process mid-write is worse than waiting for it.
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: {{ .Values.server.resources.requests.cpu | quote }}
+              memory: {{ .Values.server.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.server.resources.limits.cpu | quote }}
+              memory: {{ .Values.server.resources.limits.memory | quote }}
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: {{ .Values.db.path }}
+      volumes:
+        - name: sqlite-data
+          persistentVolumeClaim:
+            claimName: tracy-data

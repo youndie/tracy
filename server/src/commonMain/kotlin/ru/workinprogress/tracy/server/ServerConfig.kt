@@ -23,6 +23,11 @@ class ServerConfig(
     val mcpAllowedHosts: List<String> = emptyList(),
     /** Name tracy-server observes itself under. `null` disables self-observation. */
     val selfService: String? = null,
+    /**
+     * Which instance this is. In a cluster `HOSTNAME` is the pod name, which is what makes a
+     * record traceable back to a restart; a constant here would merge every replica into one.
+     */
+    val instanceId: String = "local",
 ) {
     companion object {
         /**
@@ -54,6 +59,7 @@ class ServerConfig(
                         .map { it.trim() }
                         .filter { it.isNotEmpty() },
                 selfService = read("TRACY_SELF_SERVICE")?.takeIf { it.isNotBlank() },
+                instanceId = read("HOSTNAME")?.takeIf { it.isNotBlank() } ?: "local",
             )
         }
     }

@@ -23,6 +23,8 @@ public sealed interface SendResult {
     public data class Accepted(
         val accepted: Int,
         val suppressedKeys: List<String>,
+        /** Lines the server could not parse. Zero on an older server, which simply omits it. */
+        val malformed: Int = 0,
     ) : SendResult
 
     /** `400`, `401`, `413` — repeating will not help; count it and move on. */
@@ -86,7 +88,7 @@ public class Sender(
                     val parsed =
                         runCatching { TracyJson.decodeFromString<IngestResponse>(response.bodyAsText()) }
                             .getOrDefault(IngestResponse(accepted = batch.size))
-                    SendResult.Accepted(parsed.accepted, parsed.suppressedKeys)
+                    SendResult.Accepted(parsed.accepted, parsed.suppressedKeys, parsed.malformed)
                 }
 
                 // Repeating these cannot help: the key is wrong, the request is malformed, or the

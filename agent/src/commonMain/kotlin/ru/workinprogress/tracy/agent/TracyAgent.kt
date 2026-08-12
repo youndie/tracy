@@ -29,6 +29,29 @@ public class TracyAgent(
     private val seq = AtomicLong(0)
     private val dedup = EntityRefDeduplicator()
 
+    /**
+     * Entity keys the server has stopped indexing (research D15).
+     *
+     * The server latches this decision and repeats it on every accepted response, so an agent
+     * that just restarted learns the current state from its first reply rather than having to
+     * be told. Held here so the refs are never produced in the first place: sending them to be
+     * dropped costs the network and the server nothing useful.
+     */
+    private var suppressed: Set<String> = emptySet()
+
+    /** Applied from an accepted response. Replaces rather than merges: the server's list is the state. */
+    public fun applySuppressed(keys: List<String>) {
+        suppressed = keys.toSet()
+    }
+
+    public fun suppressedKeys(): Set<String> = suppressed
+
+    /**
+     * Called when a record should not wait for the next flush tick. Set by [TracyDelivery]; null
+     * when nothing is delivering, which is the case in tests and in a service that only buffers.
+     */
+    internal var onUrgent: (() -> Unit)? = null
+
     public fun logger(name: String): TracyLogger = TracyLogger(name, this)
 
     override fun isEnabled(level: Level): Boolean = level.atLeast(config.level)
@@ -77,11 +100,16 @@ public class TracyAgent(
         if (trace == null) {
             // No request to attach to, so there is no tail decision to wait for.
             buffer.offer(deduplicated)
+            if (level.atLeast(Level.ERROR)) onUrgent?.invoke()
             return
         }
 
         if (level.atLeast(Level.WARN)) trace.markProblem()
         trace.add(deduplicated)
+        // An ERROR is the record nobody wants to wait a second for, and the one most likely to be
+        // followed by the process going away. The flush is asked for, not performed here: this
+        // runs on the caller's thread inside the service being observed.
+        if (level.atLeast(Level.ERROR)) onUrgent?.invoke()
     }
 
     public fun now(): Long = clock()
@@ -150,6 +178,7 @@ public class TracyAgent(
         val keys = record.indexed ?: return
         val traceId = record.traceId ?: return
         for (key in keys) {
+            if (key in suppressed) continue
             val value = record.fields?.get(key)?.content ?: continue
             buffer.offer(
                 EntityRef(

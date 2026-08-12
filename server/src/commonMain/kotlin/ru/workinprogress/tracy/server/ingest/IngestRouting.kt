@@ -74,6 +74,7 @@ public fun Route.ingestRoutes(
         val response =
             IngestResponse(
                 accepted = result.accepted,
+                malformed = decoded.malformed,
                 suppressedKeys = suppressedKeys(service),
             )
         call.respondJson(HttpStatusCode.Accepted, TracyJson.encodeToString(response))

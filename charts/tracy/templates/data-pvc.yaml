@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tracy-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: tracy-server
+spec:
+  storageClassName: {{ .Values.db.class | quote }}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.db.size | quote }}

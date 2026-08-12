@@ -1,0 +1,11 @@
+# Build outputs and caches: a full `build/` tree is larger than everything else combined and
+# would be sent to the daemon on every build only to be overwritten by the build itself.
+**/build/
+.gradle/
+.kotlin/
+.idea/
+.git/
+
+charts/
+docs/
+*.md
