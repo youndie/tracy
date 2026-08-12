@@ -20,11 +20,11 @@ Same niche as [katcher](https://github.com/youndie/katcher) (crashes) and
 [metrik](https://github.com/youndie/metrik) (metrics): between "`kubectl logs` is enough" and
 "let's run Loki + Promtail + Grafana".
 
-> **Status: working, not yet in production.** The agent, the server, storage, traces and the MCP
-> endpoint are written and covered by 280 tests; the image builds and runs, and the whole loop —
-> a batch in, SQLite, a read back over MCP — is exercised in a container. What has *not* happened
-> yet: a deploy to a cluster and a real service sending real logs. The volume figures below are
-> arithmetic, not measurements, and they are labelled as such.
+> **Status: deployed, no real traffic yet.** The agent, the server, storage, traces and the MCP
+> endpoint are written and covered by 280 tests; the whole loop — a batch in, SQLite, a read back
+> over MCP — is exercised in a container, and the server runs on a staging cluster behind an
+> ingress. What has *not* happened yet: a real service sending real logs. The volume figures
+> below are arithmetic, not measurements, and they are labelled as such.
 
 ## Overview
 
