@@ -17,6 +17,9 @@ import ru.workinprogress.tracy.server.db.EntityKeyBudget
 import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.server.db.migrateDb
 import ru.workinprogress.tracy.server.ingest.ingestRoutes
+import ru.workinprogress.tracy.server.trace.SpanSearchRepository
+import ru.workinprogress.tracy.server.trace.TraceRepository
+import ru.workinprogress.tracy.server.trace.traceRoutes
 
 public fun main() {
     val config = ServerConfig.fromEnv()
@@ -73,5 +76,6 @@ public fun Application.module(
     routing {
         get("/health") { call.respondText("ok") }
         ingestRoutes(config, repository) { service -> budget.suppressedFor(service) }
+        traceRoutes(TraceRepository(db), SpanSearchRepository(db))
     }
 }
