@@ -8,7 +8,7 @@ sqlx4k = "1.13.0"
 kotlinLogging = "8.0.4"
 mcpSdk = "0.15.0"
 logback = "1.6.2"
-ktlintPlugin = "14.0.1"
+ktlintPlugin = "14.2.0"
 # renovate: datasource=maven depName=com.pinterest.ktlint:ktlint-cli
 ktlint = "1.8.0"
 
