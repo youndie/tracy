@@ -35,7 +35,7 @@ jobs:
       # is per-architecture, so a second platform means a second full compile rather than a
       # second manifest entry.
       - name: Dockerize and push 🏗️
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./server/Dockerfile
