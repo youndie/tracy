@@ -45,6 +45,11 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            // A real server on a real port. The component under test swallows its own errors by
+            // design, and a fake would verify everything except the one thing that can break
+            // silently — metrik lost months to exactly that (research 1.5).
+            implementation(ktorLibs.server.core)
+            implementation(ktorLibs.server.cio)
         }
     }
 }

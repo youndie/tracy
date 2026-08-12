@@ -131,9 +131,20 @@ thread-local, который кто-то обновлял бы на каждом
 | Находка | Что это значит для tracy |
 |---|---|
 | **§1.5** Каждый `SelectorManager` навсегда занимает воркер `Dispatchers.Default`; на 2-ядерном поде двух селекторов достаточно, чтобы `delay` перестал срабатывать во всём процессе | Агент tracy живёт **в чужом процессе**. Отправитель обязан либо не создавать `SelectorManager` вовсе, либо держать его на своём потоке (`SelectorManager(newSingleThreadContext(...))`). См. Р4 |
-| **§1.6** `InetSocketAddress(host, port)` на Kotlin/Native **не резолвит доменное имя** — `connect` падает с `EINVAL`; на JVM тот же код работает | Endpoint tracy в кластере — доменное имя сервиса. Резолвить самим через `getaddrinfo` на каждое подключение (готовый `HostResolver.native.kt` в metrik) |
+| **§1.6** `InetSocketAddress(host, port)` на Kotlin/Native **не резолвит доменное имя** — `connect` падает с `EINVAL`; на JVM тот же код работает | **К tracy не применимо** — см. поправку ниже |
 | **§1.7** `HttpClient(CIO)` на Kotlin/Native падает с `TLS sessions are not supported on Native platform`; лечится `ktor-client-curl`, klib которого **несёт статические** `libcurl.a`/`libssl.a`/`libcrypto.a`, но требует `ca-certificates` в образе | Транспорт tracy — HTTP (Р2). На нативных таргетах движок клиента — curl, `expect/actual`. Иначе любой https-endpoint молчит |
 | **§1.8** Статику нативный Ktor отдаёт сам (`SystemFileSystem` + `respondBytesWriter`), но `ktor-server-compression` — **только JVM**; `respondSource` держит тело целиком в памяти | Если появится UI, отдаём его сами, без nginx; gzip — заранее сжатыми файлами на этапе сборки образа |
+
+**Поправка, проверенная в M-22/M-29 (2026-08-12): шим `getaddrinfo` для tracy не нужен.** Грабля
+§1.6 относится к сокетам `ktor-network`, где `InetSocketAddress` отвергает нечисловой адрес сразу.
+Транспорт tracy — HTTP через `ktor-client-curl`, а libcurl резолвит имена сам. Проверено тестом
+`SenderSocketTest.a hostname is resolved by the engine itself` на **linuxX64**: отправка на
+`http://localhost:$port` доходит, сервер получает батч.
+
+Точная граница утверждения: доказано, что движок **принимает имя** вместо числового адреса, — а
+именно это и ломалось у metrik. Что резолвится не только `/etc/hosts`, но и настоящий DNS
+кластера, проверяется на выкате (M-74), а не сейчас. Запланированный `HostResolver.native.kt`
+из M-22 удалён из задачи.
 
 **Общий вывод metrik, который здесь дороже всего:** компонент, по замыслу глотающий свои ошибки
 (а агент наблюдаемости обязан их глотать — иначе он роняет наблюдаемый сервис), **дважды молчал в

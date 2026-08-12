@@ -1,6 +1,7 @@
 package ru.workinprogress.tracy.agent
 
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 
 /**
  * The engine is per-platform on purpose, and both reasons were paid for in metrik:
@@ -13,4 +14,4 @@ import io.ktor.client.HttpClient
  *
  * Whether Curl actually avoids the second problem is a hypothesis, not a fact; M-26 measures it.
  */
-internal expect fun tracyHttpClient(): HttpClient
+internal expect fun tracyHttpClient(configure: HttpClientConfig<*>.() -> Unit = {}): HttpClient
