@@ -59,6 +59,7 @@ public fun Application.installMcp(
         }
     }
 
+    @Suppress("UNUSED_EXPRESSION")
     mcpStatelessStreamableHttp(
         path = MCP_PATH,
         // The SDK's own defence against DNS rebinding. Left on whenever hosts are configured;

@@ -1,0 +1,43 @@
+name: Publish
+
+# The agent is the half of tracy that lives inside someone else's service, so it is the half
+# that has to be resolvable as an artifact. `:shared` goes with it: `:agent` exposes it through
+# `api`, so a consumer that cannot resolve `:shared` cannot use `:agent` either.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      # Published only after the build passes. Publishing an artifact that failed its own tests
+      # is worse than not publishing: it is available and wrong.
+      - run: ./gradlew build --stacktrace
+
+      # The repository address is configuration, not a constant: with REPOSILITE_URL absent the
+      # publishing block registers no repository at all, which is what keeps the host out of the
+      # public build files.
+      - run: ./gradlew :agent:publishAllPublicationsToWipRepository :shared:publishAllPublicationsToWipRepository --stacktrace
+        env:
+          REPOSILITE_URL: ${{ secrets.REPOSILITE_URL }}
+          REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}

@@ -2,7 +2,7 @@
 id: feature-structured-logging
 title: Структурное логирование с разделением доверенного и данных
 type: feature
-status: draft
+status: active
 owner: unassigned
 involved_services:
   - tracy-agent
@@ -14,7 +14,7 @@ tags: [logging, security, kmp]
 
 # Структурное логирование с разделением доверенного и данных
 
-> `status: draft` — кода нет. Всё ниже описывает **целевое** поведение. Числа, статусы и тексты
+> `status: active` — написано и покрыто тестами. Числа, статусы и тексты
 > ошибок помечаются проверенными только после того, как появятся в коде.
 
 ## 1. Суть

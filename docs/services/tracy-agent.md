@@ -2,7 +2,7 @@
 id: tracy-agent
 title: tracy-agent
 type: service
-status: draft
+status: active
 module: ":agent"
 tech_stack: [Kotlin, KMP, Ktor]
 targets: [jvm, macosArm64, linuxX64, linuxArm64]
@@ -15,7 +15,10 @@ publishes:
 
 # tracy-agent
 
-> `status: draft` — кода нет.
+> `status: active` — написан. Одна оговорка, найденная при подготовке M7 и стоящая того, чтобы
+> её прочли: цикла доставки до M7 **не существовало** — `Sender` умел отправить один батч,
+> `flushInterval` не читал ни один код. Теперь доставку ведёт `TracyDelivery`. Ни один настоящий
+> сервис к агенту пока не подключён (M-74).
 
 ## 1. Зона ответственности
 

@@ -2,7 +2,7 @@
 id: endpoint-query
 title: HTTP API чтения логов
 type: api_endpoints
-status: draft
+status: active
 services:
   - tracy-server
 contract_source:
@@ -12,7 +12,9 @@ parent_feature: feature-log-search
 
 # API: чтение логов
 
-> `status: draft` — кода нет. Тот же набор данных отдаётся агенту через
+> `status: active` — написано и покрыто тестами; на живом контуре не крутилось (M-74).
+> Курсор из списка параметров убран: его в коде нет и не будет, сужать вместо листания — решение.
+> Тот же набор данных отдаётся агенту через
 > [mcp-tools](mcp-tools.md); HTTP-слой существует для человека, для `curl` при отладке и как
 > основа будущего UI. **Формы ответов общие, защита — разная**: HTTP отдаёт данные как есть,
 > MCP пропускает их через скрин и две фазы (research §1.9).
@@ -23,7 +25,7 @@ parent_feature: feature-log-search
 |---|---|---|
 | `POST /ingest` | `X-Tracy-Key` | приём батча, [protocol-ingest](protocol-ingest.md) |
 | `GET /api/services` | заголовки reverse proxy | сервисы, инстансы, последняя активность, **произведено и сохранено байт** по уровням за окно, число ссылок на ключ |
-| `GET /api/logs` | заголовки reverse proxy | поиск: `service`, `instance`, `level`, `since`, `until`, `q`, `templateId`, `exceptionClass`, `traceId`, `entityKey`+`entityValue`, `limit`, `cursor` |
+| `GET /api/logs` | заголовки reverse proxy | поиск: `service`, `instance`, `level`, `since`, `until`, `q`, `templateId`, `exceptionClass`, `traceId`, `entityKey`+`entityValue`, `limit` |
 | `GET /api/spans` | заголовки reverse proxy | поиск по спанам: `service`, `name`, `minDurationMs`, `status`, `error`, `since`, `until`, `limit` |
 | `GET /api/entities/{key}/{value}` | заголовки reverse proxy | хронология сущности по всем сервисам и трассам |
 | `GET /api/entities/{key}/top` | заголовки reverse proxy | агрегация по значению: `since`, `until`, `limit` |

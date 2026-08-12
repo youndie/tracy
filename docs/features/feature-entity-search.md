@@ -2,7 +2,7 @@
 id: feature-entity-search
 title: Поиск по бизнес-сущностям
 type: feature
-status: draft
+status: active
 owner: unassigned
 involved_services:
   - tracy-agent
@@ -16,7 +16,8 @@ tags: [search, entities, sampling]
 
 # Поиск по бизнес-сущностям
 
-> `status: draft` — кода нет, поведение целевое.
+> `status: active` — написано и покрыто тестами. Не проверено на настоящем потоке: сработает ли
+> предохранитель по ключу так, как задумано, покажет только реальный сервис (M-74).
 
 ## 1. Суть
 

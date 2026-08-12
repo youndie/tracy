@@ -8,12 +8,19 @@ plugins {
 // consuming the agent from a Maven repository.
 publishing {
     repositories {
-        maven {
-            name = "wip"
-            url = uri("https://reposilite.kotlin.website/snapshots")
-            credentials {
-                username = findProperty("REPOSILITE_USER")?.toString()
-                password = findProperty("REPOSILITE_SECRET")?.toString()
+        // Address, user and secret all come from outside the repository. The URL is not a
+        // credential, but it is infrastructure, and a public build file is a poor place to
+        // publish the location of a private Maven repository.
+        val repositoryUrl = providers.gradleProperty("REPOSILITE_URL").orElse(providers.environmentVariable("REPOSILITE_URL"))
+        if (repositoryUrl.isPresent) {
+            maven {
+                name = "wip"
+                url = uri(repositoryUrl.get())
+                credentials {
+                    username = providers.gradleProperty("REPOSILITE_USER").orElse(providers.environmentVariable("REPOSILITE_USER")).orNull
+                    password =
+                        providers.gradleProperty("REPOSILITE_SECRET").orElse(providers.environmentVariable("REPOSILITE_SECRET")).orNull
+                }
             }
         }
     }

@@ -2,7 +2,7 @@
 id: feature-trace-correlation
 title: Сквозная трасса — восстановление всей цепочки по traceId
 type: feature
-status: draft
+status: active
 owner: unassigned
 involved_services:
   - tracy-agent
@@ -16,7 +16,8 @@ tags: [tracing, w3c, spans, kmp]
 
 # Сквозная трасса
 
-> `status: draft` — кода нет, поведение целевое.
+> `status: active` — написано и покрыто тестами, включая сквозной прогон на трёх сервисах.
+> Живая проверка `SIGTERM`/`SIGKILL` на настоящем поде остаётся за M-74.
 
 ## 1. Суть
 

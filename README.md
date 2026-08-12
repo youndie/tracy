@@ -10,8 +10,14 @@ Same niche as [katcher](https://github.com/youndie/katcher) (crashes) and metrik
 between "`kubectl logs` is enough" and "let's run Loki + Promtail + Grafana". One binary,
 one database file, no JVM in production.
 
-> **Status: documentation only.** No code yet. The design, the verified facts behind it and the
-> plan are in [`docs/`](docs/README.md) and [`BACKLOG.md`](BACKLOG.md) — both in Russian.
+> **Status: working, not yet in production.** The agent, the server, storage, traces and the MCP
+> endpoint are written and covered by 279 tests; the image builds and runs, and the whole loop —
+> a batch in, SQLite, a read back over MCP — is exercised in a container. What has *not* happened
+> yet: a deploy to a cluster and a real service sending real logs. Numbers below about volume are
+> arithmetic, not measurements, and they are labelled as such.
+>
+> The design, the verified facts behind it and the plan are in [`docs/`](docs/README.md) and
+> [`BACKLOG.md`](BACKLOG.md) — both in Russian.
 
 ## What it does
 
@@ -57,6 +63,78 @@ one database file, no JVM in production.
 - **Not an audit log of record.** You can investigate with it, but sampling, retention limits,
   size-based eviction and redaction all work against audit guarantees. Anything that must be
   provably complete belongs somewhere else.
+
+## Quick start
+
+Run the server. It is one binary and one file; the only required setting is the ingest key,
+because a log collector that quietly started without one is indistinguishable from a healthy one
+until the first incident.
+
+```bash
+TRACY_INGEST_KEY=dev-key TRACY_DB_PATH=/tmp/tracy.db ./server.kexe
+```
+
+Or from the image, which is what a deploy uses:
+
+```bash
+docker run -p 8080:8080 -e TRACY_INGEST_KEY=dev-key ghcr.io/youndie/tracy:0.1.0
+```
+
+Add the agent to a Ktor service:
+
+```kotlin
+val config = AgentConfig(
+    service = "orders-api",
+    apiKey = ingestKey,              // from your own configuration; there is no System.getenv on native
+    endpoint = "https://tracy.example",
+    instanceId = podName,            // HOSTNAME in a cluster: a record is traceable back to a restart
+)
+val tracy = TracyAgent(config, clock = { Clock.System.now().toEpochMilliseconds() })
+
+// Nothing leaves the process until this runs: the agent buffers, the delivery loop sends.
+TracyDelivery(tracy, config).start(this)
+
+install(Tracy) { agent = tracy }  // incoming spans, trace context, tail sampling
+```
+
+The client plugin belongs to the `HttpClient` you make outgoing calls with — that is what makes
+the chain continue on the other side:
+
+```kotlin
+val http = HttpClient {
+    install(TracyClient) { agent = tracy }  // outgoing calls carry `traceparent`
+}
+```
+
+Then log. The message is a constant you wrote; the values go into fields, and that separation is
+what keeps a caller's input out of the template table later. Logging is `suspend` by design — it
+runs inside your request, and the trace context lives in the coroutine, because Kotlin/Native has
+no MDC and no `ThreadContextElement`:
+
+```kotlin
+val log = tracy.logger("OrdersRouting")
+
+post("/orders") {
+    val order = createOrder(call.receive())
+
+    log.info("order created") { field("orderId", order.id, indexed = true) }
+
+    call.respond(order)
+}
+```
+
+`indexed = true` makes `orderId` an entity key — that is what later answers "show me everything
+that ever happened to order 12345", across services and across separate traces.
+
+Point a coding agent at it:
+
+```bash
+claude mcp add --transport http tracy https://tracy.example/mcp \
+  --header "Authorization: Bearer $TRACY_MCP_TOKEN"
+```
+
+With no `TRACY_MCP_TOKEN` set on the server there is no MCP endpoint at all — the feature is off
+by default rather than open by default.
 
 ## Requirements
 

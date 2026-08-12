@@ -42,7 +42,7 @@ import kotlin.time.Duration.Companion.seconds
  * and answers the actual question: if Curl runs on threads of its own, it is not competing for
  * the host's dispatcher at all.
  */
-@OptIn(ExperimentalForeignApi::class, DelicateCoroutinesApi::class)
+@OptIn(ExperimentalForeignApi::class, DelicateCoroutinesApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CurlThreadCensusTest {
     private fun threadCount(): Int =
         memScoped {

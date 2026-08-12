@@ -31,7 +31,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  * - **a rejection drops the batch.** `400`/`401`/`413` will not improve on the next attempt, and
  *   an agent that retries them forever stops sending everything else.
  */
-@OptIn(ExperimentalAtomicApi::class)
+@OptIn(ExperimentalAtomicApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 public class TracyDelivery(
     private val agent: TracyAgent,
     private val config: AgentConfig,
