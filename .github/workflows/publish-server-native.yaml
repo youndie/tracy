@@ -1,0 +1,40 @@
+name: Publish server native
+
+# Manual on purpose. The image tag is a fixed version rather than a moving `latest`, and the
+# deploy that consumes it lives in another repository — so publishing is a decision, not a
+# side effect of merging.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Extract version
+        run: echo "VERSION=$(grep '^SERVER_VERSION=' gradle.properties | cut -d'=' -f2)" >> $GITHUB_ENV
+
+      # The native binary is built inside the image — see server/Dockerfile — so there is no
+      # Gradle step here. amd64 only: that is what the cluster runs, and a Kotlin/Native binary
+      # is per-architecture, so a second platform means a second full compile rather than a
+      # second manifest entry.
+      - name: Dockerize and push 🏗️
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/youndie/tracy:${{ env.VERSION }}
+            ghcr.io/youndie/tracy:latest
