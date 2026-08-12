@@ -1,8 +1,11 @@
 package ru.workinprogress.tracy.agent
 
+import ru.workinprogress.tracy.wire.BatchLine
+import ru.workinprogress.tracy.wire.EntityRef
 import ru.workinprogress.tracy.wire.EntityRefDeduplicator
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
+import ru.workinprogress.tracy.wire.Span
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
@@ -20,6 +23,8 @@ public class TracyAgent(
     private val buffer: RecordBuffer = RecordBuffer(config.maxBufferBytes),
     private val counters: TemplateCounters = TemplateCounters(),
     private val clock: () -> Long,
+    /** Injectable so the sampling decision is testable without relying on luck. */
+    private val random: () -> Double = { kotlin.random.Random.nextDouble() },
 ) : RecordSink {
     private val seq = AtomicLong(0)
     private val dedup = EntityRefDeduplicator()
@@ -79,9 +84,78 @@ public class TracyAgent(
         trace.add(deduplicated)
     }
 
+    public fun now(): Long = clock()
+
+    @PublishedApi
+    internal fun recordSpan(
+        trace: TracyTraceContext,
+        span: Span,
+    ) {
+        if (config.spans) trace.add(span)
+    }
+
+    /**
+     * The tail decision (research D7). Everything of the request has been waiting for it, because
+     * whether the request is interesting is only known once it has finished.
+     *
+     * Note what does **not** happen here: nothing is propagated downstream. By now the outgoing
+     * calls have already been made, so a tail decision cannot reach them — only the head decision
+     * could, and it did. For errors that is enough: they travel up as responses and every service
+     * reaches the same conclusion on its own.
+     */
+    public fun finishRequest(
+        trace: TracyTraceContext,
+        span: Span?,
+        durationMs: Long,
+        statusCode: Int?,
+        forced: Boolean = false,
+    ) {
+        val pending = trace.takePending()
+
+        val keepAll =
+            trace.hasProblem ||
+                (statusCode != null && statusCode >= 500) ||
+                durationMs >= config.slowThreshold.inWholeMilliseconds ||
+                trace.sampledUpstream ||
+                forced ||
+                random() < config.sampleRate
+
+        if (keepAll) {
+            pending.forEach { buffer.offer(it) }
+            span?.let { if (config.spans) buffer.offer(it) }
+            return
+        }
+
+        // Dropped, but the floor still applies: warnings, and entity references without bodies.
+        // Spans follow the trace — keeping one per request cost ~1.2 GB a day at 100 rps, sixteen
+        // times the rest of the budget put together (research D7).
+        for (line in pending) {
+            when {
+                line !is LogRecord -> Unit
+                line.level.atLeast(Level.WARN) -> buffer.offer(line)
+                else -> emitRefsWithoutBody(line)
+            }
+        }
+    }
+
+    private fun emitRefsWithoutBody(record: LogRecord) {
+        val keys = record.indexed ?: return
+        val traceId = record.traceId ?: return
+        for (key in keys) {
+            val value = record.fields?.get(key)?.content ?: continue
+            buffer.offer(
+                EntityRef(
+                    traceId = traceId,
+                    key = key,
+                    value = value,
+                    ts = record.ts,
+                ),
+            )
+        }
+    }
+
     /** Everything the sender needs to attach to the next batch. */
-    public fun drainBatch(): List<ru.workinprogress.tracy.wire.BatchLine> =
-        buffer.drain(config.maxBatchBytes) + counters.drainClosed(clock())
+    public fun drainBatch(): List<BatchLine> = buffer.drain(config.maxBatchBytes) + counters.drainClosed(clock())
 
     public fun counters(): BufferCounters = buffer.takeCounters()
 

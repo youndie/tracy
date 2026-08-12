@@ -114,12 +114,32 @@ public data class TemplateCount(
     @SerialName("k") val k: String = LineKind.COUNTER,
 ) : BatchLine
 
+/**
+ * A reference to a business entity, sent **without** a record body.
+ *
+ * This is what makes research D12 work at all. References are exempt from sampling, so when a
+ * trace is dropped the body goes but the reference stays: the server stores it with a null
+ * `entry_id`, and "cart 12345 was touched by orders-api at 14:03 in trace X" remains answerable.
+ * Without this line kind, the only way to keep a reference would be to keep the whole record,
+ * which is precisely the cost sampling exists to avoid.
+ */
+@Serializable
+public data class EntityRef(
+    @SerialName("tr") val traceId: String,
+    @SerialName("key") val key: String,
+    @SerialName("val") val value: String,
+    @SerialName("t") val ts: Long,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @SerialName("k") val k: String = LineKind.ENTITY_REF,
+) : BatchLine
+
 internal object BatchLineSerializer : JsonContentPolymorphicSerializer<BatchLine>(BatchLine::class) {
     override fun selectDeserializer(element: JsonElement): KSerializer<out BatchLine> {
         val kind = (element as? JsonObject)?.get("k")?.jsonPrimitive?.content
         return when (kind) {
             LineKind.SPAN -> Span.serializer()
             LineKind.COUNTER -> TemplateCount.serializer()
+            LineKind.ENTITY_REF -> EntityRef.serializer()
             else -> LogRecord.serializer()
         }
     }

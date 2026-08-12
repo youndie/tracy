@@ -30,7 +30,6 @@ kotlin {
         commonMain.dependencies {
             api(projects.shared)
             implementation(ktorLibs.server.core)
-            implementation(ktorLibs.server.callId)
             implementation(libs.kotlin.logging)
             // The client is shared, the engine is per-platform: CIO has no TLS on
             // Kotlin/Native and drags a SelectorManager into the host process.

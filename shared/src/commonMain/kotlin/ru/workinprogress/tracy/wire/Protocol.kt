@@ -25,4 +25,5 @@ public object IngestHeaders {
 public object LineKind {
     public const val SPAN: String = "s"
     public const val COUNTER: String = "c"
+    public const val ENTITY_REF: String = "r"
 }

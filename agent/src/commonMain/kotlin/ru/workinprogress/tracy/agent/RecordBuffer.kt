@@ -2,6 +2,7 @@ package ru.workinprogress.tracy.agent
 
 import kotlinx.coroutines.channels.Channel
 import ru.workinprogress.tracy.wire.BatchLine
+import ru.workinprogress.tracy.wire.EntityRef
 import ru.workinprogress.tracy.wire.LogRecord
 import ru.workinprogress.tracy.wire.Span
 import ru.workinprogress.tracy.wire.TemplateCount
@@ -99,6 +100,12 @@ public class RecordBuffer(
 
                 is TemplateCount -> {
                     OVERHEAD + line.template.length
+                }
+
+                // Tiny by design: a reference is what survives when the body is sampled away,
+                // and it only pays off because it costs a fraction of a record (research D12).
+                is EntityRef -> {
+                    OVERHEAD + line.key.length + line.value.length
                 }
             }
 
