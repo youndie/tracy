@@ -38,6 +38,11 @@ one database file, no JVM in production.
   rather than silently disappearing.
 - **Not a log pipeline.** tracy does not replace your stdout logs — it runs alongside them, on
   purpose: an in-process buffer cannot survive a `SIGKILL`, and stdout can.
+- **Not a complete capture on native.** Measured, not assumed: on Kotlin/Native tracy sees what
+  you write through its API or through kotlin-logging. Ktor's own logger and `println` go to
+  stdout and nowhere else. On the JVM the SLF4J appender does see framework and library logs.
+  Since framework logging is around 97% of the volume in practice, this is mostly the noise an
+  `INFO` floor would drop anyway — but it is a boundary, and you should know where it runs.
 - **Not multi-tenant.** One installation belongs to one team. Isolation means a second
   installation — which is cheap, because it is one binary and one file.
 - **Not an unlimited store.** Retention is bounded by both age and file size, and sampling is on

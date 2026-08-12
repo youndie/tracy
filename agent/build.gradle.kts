@@ -37,6 +37,12 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(ktorLibs.client.cio)
+            // compileOnly: the host application already brings logback. Shipping our own copy
+            // into somebody else's classpath is how a library breaks its host.
+            compileOnly(libs.logback.classic)
+        }
+        jvmTest.dependencies {
+            implementation(libs.logback.classic)
         }
         nativeMain.dependencies {
             implementation(ktorLibs.client.curl)
