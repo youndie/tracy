@@ -9,8 +9,7 @@ date: 2026-08-12
 # Бриф: веб-интерфейс tracy
 
 Целевая реализация — **Compose Multiplatform / Wasm**, Material 3. Светлая и тёмная темы.
-Ближайший референс по стеку и подаче — дашборд metrik (`~/IdeaProjects/metrik`,
-`docs/design/metrik-expressive.html`) и серверный UI katcher.
+Ближайший референс по стеку и подаче — дашборд metrik и серверный UI katcher.
 
 Кода интерфейса нет; макет опережает реализацию. Документы, на которые опирается бриф, лежат
 рядом: [research](../research/research-architecture.md) — почему всё устроено так,
