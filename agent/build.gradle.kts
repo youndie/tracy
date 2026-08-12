@@ -42,6 +42,12 @@ kotlin {
         nativeMain.dependencies {
             implementation(ktorLibs.client.curl)
         }
+        nativeTest.dependencies {
+            // Positive control for M-26: a SelectorManager is the thing known to occupy a
+            // Dispatchers.Default worker. Without showing the harness can detect starvation,
+            // "curl looks fine" would be an untested claim about the harness, not about curl.
+            implementation(ktorLibs.network)
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
