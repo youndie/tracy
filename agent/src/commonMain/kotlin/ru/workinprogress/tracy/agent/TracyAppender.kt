@@ -41,6 +41,9 @@ public class TracyAppender(
                 cause = loggingEvent.cause,
                 builder = builder,
                 trace = null,
+                // Captured, not written through tracy's API: the framework already substituted
+                // its arguments into this string.
+                untrusted = true,
             )
         }
     }

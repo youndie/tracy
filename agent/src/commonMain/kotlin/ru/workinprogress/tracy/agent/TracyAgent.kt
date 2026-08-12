@@ -63,6 +63,7 @@ public class TracyAgent(
         cause: Throwable?,
         builder: LogBuilder,
         trace: TracyTraceContext?,
+        untrusted: Boolean,
     ) {
         val now = clock()
 
@@ -87,6 +88,9 @@ public class TracyAgent(
                 level = level,
                 logger = logger,
                 message = redactedMessage.text,
+                // Carried to the server, which normalizes and truncates an untrusted message
+                // into a template instead of storing it verbatim.
+                untrusted = if (untrusted) 1 else null,
                 fields = redactedFields.fields,
                 traceId = trace?.traceId,
                 spanId = trace?.spanId,

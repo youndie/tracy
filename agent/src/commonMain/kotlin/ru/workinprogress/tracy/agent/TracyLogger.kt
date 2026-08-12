@@ -94,5 +94,15 @@ public interface RecordSink {
         cause: Throwable?,
         builder: LogBuilder,
         trace: TracyTraceContext? = null,
+        /**
+         * True when the message is a formatted string rather than a constant the developer wrote.
+         *
+         * This is the whole of research D8 in one parameter. A structured call already *is* its
+         * template — `log.info("order created") { field("orderId", id) }` — and its text can be
+         * stored, indexed and handed to an agent as trusted. A captured framework log is not:
+         * SLF4J and kotlin-logging substitute `{}` before tracy ever sees the string, so the data
+         * and the developer's words arrive already mixed.
+         */
+        untrusted: Boolean = false,
     )
 }
