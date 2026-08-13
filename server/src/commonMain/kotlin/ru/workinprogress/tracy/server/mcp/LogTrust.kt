@@ -30,10 +30,17 @@ public object LogTrust {
     /**
      * Invisible characters, written as escapes on purpose: katcher lost one of these to a
      * formatter that silently ate the literal, and the diff showed nothing.
+     *
+     * The C0 controls at the end were added after looking at a real stream (M-66). A framework's
+     * request logger colours its output with ANSI escapes, so `\u001B[31m401 Unauthorized\u001B[m`
+     * is what actually arrives — and an escape sequence hides text from a human reader for
+     * exactly the reason zero-width characters do. Tab, newline and carriage return are excluded
+     * because they are ordinary in a log line.
      */
     private val INVISIBLE =
         Regex(
-            "[\u200B\u200C\u200D\u2060\uFEFF\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u00AD]",
+            "[\u200B\u200C\u200D\u2060\uFEFF\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u00AD" +
+                "\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]",
         )
 
     private val RULES: List<Pair<String, Regex>> =
