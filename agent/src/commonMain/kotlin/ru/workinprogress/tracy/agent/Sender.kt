@@ -49,6 +49,11 @@ public sealed interface SendResult {
  */
 public class Sender(
     private val config: AgentConfig,
+    private val clock: () -> Long = {
+        kotlin.time.Clock.System
+            .now()
+            .toEpochMilliseconds()
+    },
     private val client: HttpClient =
         tracyHttpClient {
             install(HttpTimeout) {
@@ -76,6 +81,10 @@ public class Sender(
                     header(IngestHeaders.INSTANCE, config.instanceId)
                     config.release?.let { header(IngestHeaders.RELEASE, it) }
                     header(IngestHeaders.SEQ, seq.toString())
+                    // Read here rather than when the batch was built: a retry sends the same
+                    // records later, and the point of this header is to separate that delay from
+                    // the difference between clocks (M-110).
+                    header(IngestHeaders.SENT, clock().toString())
                     if (counters.dropped > 0) header(IngestHeaders.DROPPED, counters.dropped.toString())
                     if (counters.producedBytes > 0) {
                         header(IngestHeaders.PRODUCED, counters.producedBytes.toString())

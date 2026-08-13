@@ -105,7 +105,17 @@ internal val migrationV2: List<String> =
         """CREATE INDEX service_produced_minute ON service_produced (minute);""",
     )
 
-internal val allMigrations: List<List<String>> = listOf(migrationV1, migrationV2)
+/**
+ * Two numbers where there was one. `clock_skew_ms` keeps its name and finally means it: the
+ * difference between the agent's clock and the server's. `record_age_ms` is what the old column
+ * was actually measuring — how long the oldest record in a batch waited before it went out.
+ */
+internal val migrationV3: List<String> =
+    listOf(
+        """ALTER TABLE instance ADD COLUMN record_age_ms INTEGER NOT NULL DEFAULT 0;""",
+    )
+
+internal val allMigrations: List<List<String>> = listOf(migrationV1, migrationV2, migrationV3)
 
 /**
  * Daily partitions. Only at this granularity do both retention and the size cap reduce to

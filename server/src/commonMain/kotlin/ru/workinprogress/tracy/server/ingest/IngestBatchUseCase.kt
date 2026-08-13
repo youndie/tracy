@@ -34,12 +34,36 @@ public class IngestBatchUseCase(
         // Clock skew is recorded rather than corrected: the trace timeline is assembled from
         // several pods, and a silently "fixed" timestamp would reorder cause and effect without
         // saying so (research risk 6).
+        //
+        // Two numbers, and separating them is the whole of M-110. `received - sent` crosses the
+        // two clocks once and is therefore the difference between them. `sent - oldestRecord` is
+        // measured start to finish on the agent's own clock, so it is the delay — the flush wait
+        // and any retry — with no clock difference in it at all.
+        //
+        // Before this they were one subtraction, `received - oldestRecord`, which is their sum.
+        // On the stand that read 60 966 ms for two services: the backoff ceiling exactly, and not
+        // a clock. A field that exists to keep ordering honest was reporting a retry as a clock.
         val sourceTs = lines.firstNotNullOfOrNull { it.sourceTimestamp() }
-        val skew = if (sourceTs == null) 0L else now - sourceTs
+        val sentAt = header.sentAt
+
+        // Unknown rather than guessed. An agent older than 0.2.1 sends no `X-Tracy-Sent`, and the
+        // old subtraction would put the delivery delay back into the clock difference — the exact
+        // number this task exists to stop reporting.
+        val skew = if (sentAt == null) 0L else now - sentAt
+        val recordAge =
+            when {
+                sourceTs == null -> 0L
+
+                sentAt != null -> sentAt - sourceTs
+
+                // No send time: the age still has a floor, it just also carries the clock
+                // difference. Kept because a lag of minutes is worth seeing even approximately.
+                else -> now - sourceTs
+            }
 
         return repository.transaction {
             val serviceId = repository.serviceId(this, header.service, now)
-            val instanceId = repository.instanceId(this, serviceId, header.instance, now, skew)
+            val instanceId = repository.instanceId(this, serviceId, header.instance, now, skew, recordAge)
 
             // Idempotent per (instance, seq): an agent that never saw the 202 retries the same
             // batch, and the protocol promises the retry is free rather than doubled.

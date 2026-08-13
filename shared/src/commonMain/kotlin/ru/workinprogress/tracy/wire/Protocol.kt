@@ -16,6 +16,19 @@ public object IngestHeaders {
     public const val SEQ: String = "X-Tracy-Seq"
     public const val DROPPED: String = "X-Tracy-Dropped"
     public const val PRODUCED: String = "X-Tracy-Produced"
+
+    /**
+     * The agent's clock at the moment it put this batch on the wire.
+     *
+     * Without it the server can only compute `received - oldestRecord`, which is the clock
+     * difference plus the flush wait plus the network plus any retry — and on a 60-second backoff
+     * the retry is the whole number. Two services on the stand reported 60 966 ms of "clock skew"
+     * that way, which was the backoff ceiling and not a clock at all (M-110).
+     *
+     * With it there are two separate numbers: `received - sent` is the clock difference, and
+     * `sent - oldestRecord` is how long the record waited, measured start to finish on one clock.
+     */
+    public const val SENT: String = "X-Tracy-Sent"
 }
 
 /**

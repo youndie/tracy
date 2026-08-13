@@ -23,6 +23,12 @@ public data class BatchHeader(
     /** Bytes the service produced since the last batch — before sampling, before dropping. */
     val producedBytes: Long = 0,
     val dropped: Long = 0,
+    /**
+     * The agent's clock when it put this batch on the wire (`X-Tracy-Sent`). Null from an agent
+     * older than 0.2.1, and then the clock difference is simply unknown rather than guessed —
+     * see [ru.workinprogress.tracy.server.ingest.IngestBatchUseCase].
+     */
+    val sentAt: Long? = null,
 )
 
 public data class WriteResult(
@@ -68,7 +74,8 @@ public class IngestRepository(
         name: String,
         now: Long,
         skew: Long,
-    ): Long = dictionaries.instanceId(executor, serviceId, name, now, skew)
+        recordAge: Long,
+    ): Long = dictionaries.instanceId(executor, serviceId, name, now, skew, recordAge)
 
     /**
      * What the service produced, as opposed to what survived. Reporting only the latter would

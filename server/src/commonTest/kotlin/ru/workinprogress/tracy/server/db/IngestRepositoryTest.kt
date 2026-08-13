@@ -333,13 +333,17 @@ class IngestRepositoryTest {
     fun `clock skew is recorded rather than corrected`() =
         runTest {
             val db = freshDb()
-            // The server clock is ten seconds ahead of the source.
+            // The server clock is ten seconds ahead of the agent's, and the batch went out the
+            // moment it was made — so the whole ten seconds is the clocks, and nothing is delay.
             val repo = IngestBatchUseCase(IngestRepository(db, clock = { day + 10_000 }), clock = { day + 10_000 })
 
-            repo(header(), listOf(record(seq = 1)))
+            repo(header().copy(sentAt = day + 1), listOf(record(seq = 1)))
 
             val skew = db.scalar("SELECT clock_skew_ms FROM instance")
             assertTrue(skew != null && skew >= 9_000, "skew was $skew")
+            // Which number carries what is the point of M-110; the split itself is pinned in
+            // ingest/ClockSkewTest.
+            assertEquals(0L, db.scalar("SELECT record_age_ms FROM instance"))
             // The stored timestamp is still the source one: silently "fixing" it would reorder
             // cause and effect across pods without saying so (research risk 6).
             assertEquals(day + 1, db.scalar("SELECT ts FROM log_entry_20260801"))

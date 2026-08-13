@@ -10,7 +10,7 @@ hostname: ""
 
 server:
   image: tracy
-  version: 0.2.0
+  version: 0.2.1
   resources:
     requests:
       cpu: "50m"

@@ -59,20 +59,23 @@ public class Dictionaries {
         name: String,
         now: Long,
         clockSkewMs: Long,
+        recordAgeMs: Long,
     ): Long {
         val cached = instances[serviceId to name]
         if (cached == null) {
             executor.execute(
                 Statement
                     .create(
-                        """INSERT INTO instance (service_id, name, last_seen, clock_skew_ms)
-                       VALUES (:service, :name, :now, :skew)
-                       ON CONFLICT(service_id, name) DO UPDATE SET last_seen = :now, clock_skew_ms = :skew""",
+                        """INSERT INTO instance (service_id, name, last_seen, clock_skew_ms, record_age_ms)
+                       VALUES (:service, :name, :now, :skew, :age)
+                       ON CONFLICT(service_id, name) DO UPDATE SET
+                           last_seen = :now, clock_skew_ms = :skew, record_age_ms = :age""",
                     ).apply {
                         bind("service", serviceId)
                         bind("name", name)
                         bind("now", now)
                         bind("skew", clockSkewMs)
+                        bind("age", recordAgeMs)
                     },
             )
             val id =
@@ -87,10 +90,11 @@ public class Dictionaries {
         }
         executor.execute(
             Statement
-                .create("UPDATE instance SET last_seen = :now, clock_skew_ms = :skew WHERE id = :id")
+                .create("UPDATE instance SET last_seen = :now, clock_skew_ms = :skew, record_age_ms = :age WHERE id = :id")
                 .apply {
                     bind("now", now)
                     bind("skew", clockSkewMs)
+                    bind("age", recordAgeMs)
                     bind("id", cached)
                 },
         )

@@ -27,7 +27,14 @@ public data class ServiceSummary(
     public val producedBytes: Long,
     /** What survived to disk. The gap between the two is the point of showing both. */
     public val storedRecords: Long,
+    /** Difference between the agent's clock and the server's — see `X-Tracy-Sent`. */
     public val maxClockSkewMs: Long,
+    /**
+     * How long the oldest record of a batch waited before it went out: the flush interval plus
+     * any retry. A large value here is a delivery problem, and before M-110 it was being reported
+     * as a clock problem instead.
+     */
+    public val maxRecordAgeMs: Long = 0,
     /** References per entity key — the number that shows a key filling the database. */
     public val entityRefs: Map<String, Long> = emptyMap(),
 )
@@ -202,7 +209,8 @@ internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
                 .map { it.get(0).asString() }
 
         fetchAll(
-            """SELECT v.id, v.name, v.last_seen, count(i.id), coalesce(max(i.clock_skew_ms), 0)
+            """SELECT v.id, v.name, v.last_seen, count(i.id), coalesce(max(i.clock_skew_ms), 0),
+                      coalesce(max(i.record_age_ms), 0)
                FROM service v LEFT JOIN instance i ON i.service_id = v.id
                GROUP BY v.id ORDER BY v.name""",
         ).getOrThrow().rows.map { row ->
@@ -247,6 +255,7 @@ internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
                 producedBytes = produced,
                 storedRecords = stored,
                 maxClockSkewMs = row.get(4).asLongOrNull() ?: 0,
+                maxRecordAgeMs = row.get(5).asLongOrNull() ?: 0,
                 entityRefs = refs,
             )
         }
