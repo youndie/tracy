@@ -7,8 +7,10 @@ import io.ktor.server.request.receiveText
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
+import org.koin.ktor.ext.inject
 import ru.workinprogress.tracy.server.ServerConfig
 import ru.workinprogress.tracy.server.db.BatchHeader
+import ru.workinprogress.tracy.server.db.EntityKeyBudget
 import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.wire.INGEST_PATH
 import ru.workinprogress.tracy.wire.IngestHeaders
@@ -16,11 +18,14 @@ import ru.workinprogress.tracy.wire.IngestResponse
 import ru.workinprogress.tracy.wire.NdJson
 import ru.workinprogress.tracy.wire.TracyJson
 
-public fun Route.ingestRoutes(
-    config: ServerConfig,
-    repository: IngestRepository,
-    suppressedKeys: suspend (service: String) -> List<String> = { emptyList() },
-) {
+public fun Route.ingestRoutes() {
+    val config by inject<ServerConfig>()
+    val repository by inject<IngestRepository>()
+
+    // The breaker's decision travels back to the agent on every accepted response, so the route
+    // needs the budget itself rather than a callback threaded in from Application (research D15).
+    val budget by inject<EntityKeyBudget>()
+
     post(INGEST_PATH) {
         val key = call.request.header(IngestHeaders.KEY)
         // Constant-time comparison is pointless for a shared installation key sent on every
@@ -75,7 +80,7 @@ public fun Route.ingestRoutes(
             IngestResponse(
                 accepted = result.accepted,
                 malformed = decoded.malformed,
-                suppressedKeys = suppressedKeys(service),
+                suppressedKeys = budget.suppressedFor(service),
             )
         call.respondJson(HttpStatusCode.Accepted, TracyJson.encodeToString(response))
     }

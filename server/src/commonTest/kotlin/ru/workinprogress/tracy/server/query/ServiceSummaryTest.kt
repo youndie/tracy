@@ -3,14 +3,18 @@ package ru.workinprogress.tracy.server.query
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
+import org.koin.ktor.plugin.Koin
+import ru.workinprogress.tracy.server.ServerConfig
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.server.openDatabase
+import ru.workinprogress.tracy.server.serverModule
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
 import ru.workinprogress.tracy.wire.TracyJson
@@ -36,7 +40,10 @@ class ServiceSummaryTest {
 
             val server =
                 embeddedServer(CIO, port = 0) {
-                    routing { queryRoutes(db, QueryRepository(db), EntityRepository(db)) }
+                    // The same container production uses: the test now covers the wiring too,
+                    // not only the handler.
+                    install(Koin) { modules(serverModule(testConfig(), db)) }
+                    routing { queryRoutes() }
                 }
             server.start(wait = false)
             val client = HttpClient()
@@ -83,7 +90,10 @@ class ServiceSummaryTest {
 
             val server =
                 embeddedServer(CIO, port = 0) {
-                    routing { queryRoutes(db, QueryRepository(db), EntityRepository(db)) }
+                    // The same container production uses: the test now covers the wiring too,
+                    // not only the handler.
+                    install(Koin) { modules(serverModule(testConfig(), db)) }
+                    routing { queryRoutes() }
                 }
             server.start(wait = false)
             val client = HttpClient()
@@ -129,7 +139,10 @@ class ServiceSummaryTest {
 
             val server =
                 embeddedServer(CIO, port = 0) {
-                    routing { queryRoutes(db, QueryRepository(db), EntityRepository(db)) }
+                    // The same container production uses: the test now covers the wiring too,
+                    // not only the handler.
+                    install(Koin) { modules(serverModule(testConfig(), db)) }
+                    routing { queryRoutes() }
                 }
             server.start(wait = false)
             val client = HttpClient()
@@ -152,3 +165,5 @@ class ServiceSummaryTest {
             }
         }
 }
+
+private fun testConfig() = ServerConfig(httpPort = 0, dbPath = "unused", ingestKey = "k")

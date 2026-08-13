@@ -13,6 +13,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
+import org.koin.ktor.ext.inject
 import ru.workinprogress.tracy.server.db.EntityKeyBudget
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.TracyJson
@@ -31,12 +32,11 @@ public data class ServiceSummary(
     public val entityRefs: Map<String, Long> = emptyMap(),
 )
 
-public fun Route.queryRoutes(
-    db: ISQLite,
-    query: QueryRepository,
-    entities: EntityRepository,
-    budget: EntityKeyBudget? = null,
-) {
+public fun Route.queryRoutes() {
+    val query by inject<QueryRepository>()
+    val entities by inject<EntityRepository>()
+    val budget by inject<EntityKeyBudget>()
+
     get("/api/logs") {
         val since = call.longParam("since") ?: return@get call.badRequest("since is required")
         val until = call.longParam("until") ?: return@get call.badRequest("until is required")
@@ -121,25 +121,23 @@ public fun Route.queryRoutes(
         }
     }
 
-    if (budget != null) {
-        post("/api/entities/{key}/unsuppress") {
-            val key = call.parameters["key"] ?: return@post call.badRequest("key is required")
-            // Idempotent on purpose: a repeat is not an error, and an operator retrying a release
-            // should not have to wonder whether the first attempt worked.
-            if (budget.unsuppress(key)) {
-                call.json("""{"key":"$key","suppressed":false}""")
-            } else {
-                call.respondText(
-                    """{"error":"unknown key"}""",
-                    ContentType.Application.Json,
-                    HttpStatusCode.NotFound,
-                )
-            }
+    post("/api/entities/{key}/unsuppress") {
+        val key = call.parameters["key"] ?: return@post call.badRequest("key is required")
+        // Idempotent on purpose: a repeat is not an error, and an operator retrying a release
+        // should not have to wonder whether the first attempt worked.
+        if (budget.unsuppress(key)) {
+            call.json("""{"key":"$key","suppressed":false}""")
+        } else {
+            call.respondText(
+                """{"error":"unknown key"}""",
+                ContentType.Application.Json,
+                HttpStatusCode.NotFound,
+            )
         }
     }
 
     get("/api/services") {
-        call.json(TracyJson.encodeToString(serviceSummaries(db)))
+        call.json(TracyJson.encodeToString(query.listServices()))
     }
 }
 

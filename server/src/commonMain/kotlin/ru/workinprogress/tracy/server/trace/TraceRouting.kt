@@ -5,14 +5,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import org.koin.ktor.ext.inject
 import ru.workinprogress.tracy.wire.TracyJson
 
 private val TRACE_ID = Regex("[0-9a-f]{32}")
 
-public fun Route.traceRoutes(
-    repository: TraceRepository,
-    spans: SpanSearchRepository? = null,
-) {
+public fun Route.traceRoutes() {
+    val traces by inject<TraceRepository>()
+    val spans by inject<SpanSearchRepository>()
+
     get("/api/traces/{traceId}") {
         val traceId = call.parameters["traceId"].orEmpty().lowercase()
         if (!TRACE_ID.matches(traceId)) {
@@ -27,15 +28,13 @@ public fun Route.traceRoutes(
         // An unknown trace is 200 with an empty tree, never 404: absence of data is an answer.
         // It does not, however, distinguish "there was no such trace" from "it was sampled away",
         // and that limit belongs in the docs rather than in a status code.
-        val view = repository.load(traceId)
+        val view = traces.load(traceId)
         call.respondText(
             TracyJson.encodeToString(view),
             ContentType.Application.Json,
             HttpStatusCode.OK,
         )
     }
-
-    if (spans == null) return
 
     get("/api/spans") {
         val since = call.request.queryParameters["since"]?.toLongOrNull()

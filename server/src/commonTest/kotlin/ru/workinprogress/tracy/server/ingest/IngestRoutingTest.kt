@@ -7,13 +7,17 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
+import org.koin.ktor.plugin.Koin
 import ru.workinprogress.tracy.server.ServerConfig
 import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.server.openDatabase
+import ru.workinprogress.tracy.server.serverModule
 import ru.workinprogress.tracy.wire.IngestHeaders
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
@@ -42,17 +46,24 @@ class IngestRoutingTest {
             ?.asLongOrNull()
 
     private suspend fun withServer(
-        suppressed: List<String> = emptyList(),
+        refsPerMinute: Int = 2000,
         block: suspend (client: HttpClient, port: Int, db: ISQLite) -> Unit,
     ) {
         val db = openDatabase("/tmp/tracy-ingest-${Random.nextLong()}.db")
         val config =
-            ServerConfig(httpPort = 0, dbPath = "unused", ingestKey = "tr_live_key", maxBatchBytes = 4096)
-        val repository = IngestRepository(db, clock = { day })
+            ServerConfig(
+                httpPort = 0,
+                dbPath = "unused",
+                ingestKey = "tr_live_key",
+                maxBatchBytes = 4096,
+                entityRefsPerMinute = refsPerMinute,
+            )
 
         val server =
             embeddedServer(CIO, port = 0) {
-                routing { ingestRoutes(config, repository) { suppressed } }
+                // The real container, so the test covers the wiring as well as the handler.
+                install(Koin) { modules(serverModule(config, db)) }
+                routing { ingestRoutes() }
             }
         server.start(wait = false)
         val client = HttpClient()
@@ -160,11 +171,32 @@ class IngestRoutingTest {
     @Test
     fun `suppressed keys ride on the response`() =
         runTest {
-            withServer(suppressed = listOf("ip", "requestId")) { client, port, _ ->
-                val body = client.send(port, NdJson.encodeBatch(listOf(record(1)))).bodyAsText()
+            // The breaker is driven for real rather than stubbed: a budget of one reference per
+            // minute, then two references to the same key. Before M-100 this test injected a
+            // lambda that returned the answer, which proved the field was serialized and nothing
+            // about the decision reaching it.
+            withServer(refsPerMinute = 1) { client, port, _ ->
+                val indexed =
+                    LogRecord(
+                        ts = day + 1,
+                        seq = 1,
+                        level = Level.INFO,
+                        logger = "L",
+                        message = "order created",
+                        fields = mapOf("requestId" to JsonPrimitive("a")),
+                        traceId = "4bf92f3577b34da6a3ce929d0e0e4736",
+                        indexed = listOf("requestId"),
+                    )
+                // Distinct batch sequence numbers: the server is idempotent per (instance, seq),
+                // so repeating a batch with the same header would be dropped as a duplicate and
+                // the breaker would never see a second reference.
+                client.send(port, NdJson.encodeBatch(listOf(indexed)), seq = "1")
+                client.send(port, NdJson.encodeBatch(listOf(indexed.copy(seq = 2, ts = day + 2))), seq = "2")
+
+                val body = client.send(port, NdJson.encodeBatch(listOf(record(3))), seq = "3").bodyAsText()
 
                 // The only channel through which the server's decision reaches the agent.
-                assertTrue("\"suppressedKeys\":[\"ip\",\"requestId\"]" in body, body)
+                assertTrue("requestId" in body, body)
             }
         }
 

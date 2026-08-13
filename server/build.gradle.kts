@@ -22,13 +22,17 @@ kotlin {
             implementation(projects.shared)
             implementation(ktorLibs.server.core)
             implementation(ktorLibs.server.cio)
-            implementation(ktorLibs.server.di)
             implementation(ktorLibs.server.contentNegotiation)
             implementation(ktorLibs.server.resources)
             implementation(ktorLibs.serialization.kotlinx.json)
             implementation(libs.sqlx4k.sqlite)
             implementation(libs.okio)
             implementation(libs.mcp.server)
+            implementation(project.dependencies.platform(libs.koin.bom))
+            implementation(libs.koin.core)
+            // koin-ktor publishes for linuxx64 and macosarm64 — checked in Central, not assumed.
+            // Without it `by inject<T>()` in routes would be JVM-only and the layer could not move.
+            implementation(libs.koin.ktor)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

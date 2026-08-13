@@ -7,6 +7,7 @@ okio = "3.18.1"
 sqlx4k = "1.13.0"
 kotlinLogging = "8.0.4"
 mcpSdk = "0.15.0"
+koin = "4.2.2"
 logback = "1.6.2"
 ktlintPlugin = "14.2.0"
 # renovate: datasource=maven depName=com.pinterest.ktlint:ktlint-cli
@@ -22,6 +23,9 @@ okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 sqlx4k-sqlite = { module = "io.github.smyrgeorge:sqlx4k-sqlite", version.ref = "sqlx4k" }
 kotlin-logging = { module = "io.github.oshai:kotlin-logging", version.ref = "kotlinLogging" }
 mcp-server = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcpSdk" }
+koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin" }
+koin-core = { module = "io.insert-koin:koin-core" }
+koin-ktor = { module = "io.insert-koin:koin-ktor" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 [plugins]
