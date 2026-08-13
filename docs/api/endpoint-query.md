@@ -14,6 +14,11 @@ parent_feature: feature-log-search
 
 > `status: active` — написано и покрыто тестами; на живом контуре не крутилось (M-74).
 > Курсор из списка параметров убран: его в коде нет и не будет, сужать вместо листания — решение.
+> С M-101 маршруты описаны типами (`@Resource`), а не строками, и параметры ниже — это поля
+> классов в `query/QueryResources.kt`. Поэтому расхождение вроде того же `cursor` теперь ловится
+> компилятором, а не ревизией документов через несколько вех. Заодно переименован фильтр ошибок у
+> `/api/spans`: было `error=true`, стало `onlyErrors` — MCP-инструмент всегда звал его так, и два
+> имени у одного фильтра были ровно тем расхождением, против которого типы и заводятся.
 > Тот же набор данных отдаётся агенту через
 > [mcp-tools](mcp-tools.md); HTTP-слой существует для человека, для `curl` при отладке и как
 > основа будущего UI. **Формы ответов общие, защита — разная**: HTTP отдаёт данные как есть,
@@ -26,7 +31,7 @@ parent_feature: feature-log-search
 | `POST /ingest` | `X-Tracy-Key` | приём батча, [protocol-ingest](protocol-ingest.md) |
 | `GET /api/services` | заголовки reverse proxy | сервисы, инстансы, последняя активность, **произведено и сохранено байт** по уровням за окно, число ссылок на ключ |
 | `GET /api/logs` | заголовки reverse proxy | поиск: `service`, `instance`, `level`, `since`, `until`, `q`, `templateId`, `exceptionClass`, `traceId`, `entityKey`+`entityValue`, `limit` |
-| `GET /api/spans` | заголовки reverse proxy | поиск по спанам: `service`, `name`, `minDurationMs`, `status`, `error`, `since`, `until`, `limit` |
+| `GET /api/spans` | заголовки reverse proxy | поиск по спанам: `service`, `name`, `minDurationMs`, `onlyErrors`, `since`, `until`, `limit` |
 | `GET /api/entities/{key}/{value}` | заголовки reverse proxy | хронология сущности по всем сервисам и трассам |
 | `GET /api/entities/{key}/top` | заголовки reverse proxy | агрегация по значению: `since`, `until`, `limit` |
 | `POST /api/entities/{key}/unsuppress` | заголовки reverse proxy | снять предохранитель с ключа; идемпотентно |

@@ -6,6 +6,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.resources.Resources
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
@@ -43,6 +44,7 @@ class ServiceSummaryTest {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
                     install(Koin) { modules(serverModule(testConfig(), db)) }
+                    install(Resources)
                     routing { queryRoutes() }
                 }
             server.start(wait = false)
@@ -93,6 +95,7 @@ class ServiceSummaryTest {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
                     install(Koin) { modules(serverModule(testConfig(), db)) }
+                    install(Resources)
                     routing { queryRoutes() }
                 }
             server.start(wait = false)
@@ -142,6 +145,7 @@ class ServiceSummaryTest {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
                     install(Koin) { modules(serverModule(testConfig(), db)) }
+                    install(Resources)
                     routing { queryRoutes() }
                 }
             server.start(wait = false)

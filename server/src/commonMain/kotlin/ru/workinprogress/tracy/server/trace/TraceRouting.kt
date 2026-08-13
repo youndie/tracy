@@ -2,10 +2,12 @@ package ru.workinprogress.tracy.server.trace
 
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.resources.get
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.get
 import org.koin.ktor.ext.inject
+import ru.workinprogress.tracy.server.query.SpansResource
+import ru.workinprogress.tracy.server.query.TraceResource
 import ru.workinprogress.tracy.wire.TracyJson
 
 private val TRACE_ID = Regex("[0-9a-f]{32}")
@@ -14,8 +16,8 @@ public fun Route.traceRoutes() {
     val traces by inject<TraceRepository>()
     val spans by inject<SpanSearchRepository>()
 
-    get("/api/traces/{traceId}") {
-        val traceId = call.parameters["traceId"].orEmpty().lowercase()
+    get<TraceResource> { params ->
+        val traceId = params.traceId.lowercase()
         if (!TRACE_ID.matches(traceId)) {
             call.respondText(
                 """{"error":"traceId must be 32 lowercase hex characters"}""",
@@ -36,9 +38,9 @@ public fun Route.traceRoutes() {
         )
     }
 
-    get("/api/spans") {
-        val since = call.request.queryParameters["since"]?.toLongOrNull()
-        val until = call.request.queryParameters["until"]?.toLongOrNull()
+    get<SpansResource> { params ->
+        val since = params.since
+        val until = params.until
         if (since == null || until == null || since > until) {
             call.respondText(
                 """{"error":"since must be before until"}""",
@@ -50,16 +52,13 @@ public fun Route.traceRoutes() {
 
         val result =
             spans.search(
-                service = call.request.queryParameters["service"],
-                name = call.request.queryParameters["name"],
-                minDurationMs = call.request.queryParameters["minDurationMs"]?.toIntOrNull(),
-                onlyErrors = call.request.queryParameters["error"] == "true",
+                service = params.service,
+                name = params.name,
+                minDurationMs = params.minDurationMs,
+                onlyErrors = params.onlyErrors,
                 since = since,
                 until = until,
-                limit =
-                    call.request.queryParameters["limit"]
-                        ?.toIntOrNull()
-                        ?.coerceIn(1, 500) ?: 100,
+                limit = params.limit.coerceIn(1, 500),
             )
         call.respondText(TracyJson.encodeToString(result), ContentType.Application.Json, HttpStatusCode.OK)
     }

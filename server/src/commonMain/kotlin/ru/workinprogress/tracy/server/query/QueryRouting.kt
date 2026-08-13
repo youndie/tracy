@@ -8,10 +8,10 @@ import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.resources.get
+import io.ktor.server.resources.post
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.get
-import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
 import org.koin.ktor.ext.inject
 import ru.workinprogress.tracy.server.db.EntityKeyBudget
@@ -37,96 +37,77 @@ public fun Route.queryRoutes() {
     val entities by inject<EntityRepository>()
     val budget by inject<EntityKeyBudget>()
 
-    get("/api/logs") {
-        val since = call.longParam("since") ?: return@get call.badRequest("since is required")
-        val until = call.longParam("until") ?: return@get call.badRequest("until is required")
-        if (since > until) return@get call.badRequest("since must be before until")
-
-        val level =
-            call.request.queryParameters["level"]?.let { name ->
-                runCatching { Level.valueOf(name.uppercase()) }.getOrNull()
-                    ?: return@get call.badRequest("unknown level: $name")
-            }
+    get<LogsResource> { params ->
+        val window = call.window(params.since, params.until) ?: return@get
+        val level = call.level(params.level) ?: return@get
 
         // Checked here rather than left to the repository: there is no StatusPages in this server,
         // so an exception thrown deeper would reach the caller as a 500 for a plain input mistake.
-        val text = call.request.queryParameters["q"]
-        if (text != null && text.trim().length < 3) {
+        if (params.q != null && params.q.trim().length < 3) {
             return@get call.badRequest("q needs at least 3 characters: the index is trigram-based")
         }
 
         val result =
             query.searchLogs(
-                service = call.request.queryParameters["service"],
-                instance = call.request.queryParameters["instance"],
-                level = level,
-                since = since,
-                until = until,
-                templateId = call.request.queryParameters["templateId"]?.toLongOrNull(),
-                query = text,
-                exceptionClass = call.request.queryParameters["exceptionClass"],
-                traceId = call.request.queryParameters["traceId"],
-                entityKey = call.request.queryParameters["entityKey"],
-                entityValue = call.request.queryParameters["entityValue"],
-                limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 100,
+                service = params.service,
+                instance = params.instance,
+                level = level.value,
+                since = window.first,
+                until = window.second,
+                templateId = params.templateId,
+                query = params.q,
+                exceptionClass = params.exceptionClass,
+                traceId = params.traceId,
+                entityKey = params.entityKey,
+                entityValue = params.entityValue,
+                limit = params.limit,
             )
         call.json(TracyJson.encodeToString(result))
     }
 
-    get("/api/templates") {
-        val since = call.longParam("since") ?: return@get call.badRequest("since is required")
-        val until = call.longParam("until") ?: return@get call.badRequest("until is required")
+    get<TemplatesResource> { params ->
+        val window = call.window(params.since, params.until) ?: return@get
+        val level = call.level(params.level) ?: return@get
 
         val result =
             query.templateStats(
-                service = call.request.queryParameters["service"],
-                level = call.request.queryParameters["level"]?.let { runCatching { Level.valueOf(it.uppercase()) }.getOrNull() },
-                release = call.request.queryParameters["release"],
-                since = since,
-                until = until,
-                stepMillis = call.request.queryParameters["step"]?.toLongOrNull(),
-                limit =
-                    call.request.queryParameters["limit"]
-                        ?.toIntOrNull()
-                        ?.coerceIn(1, 200) ?: 50,
+                service = params.service,
+                level = level.value,
+                release = params.release,
+                since = window.first,
+                until = window.second,
+                stepMillis = params.step,
+                limit = params.limit.coerceIn(1, 200),
             )
         call.json(TracyJson.encodeToString(result))
     }
 
-    get("/api/entities/{key}/top") {
-        val key = call.parameters["key"] ?: return@get call.badRequest("key is required")
-        val since = call.longParam("since") ?: return@get call.badRequest("since is required")
-        val until = call.longParam("until") ?: return@get call.badRequest("until is required")
+    get<EntitiesResource.Top> { params ->
+        val window = call.window(params.since, params.until) ?: return@get
 
         try {
-            val result = entities.top(key, since, until, call.request.queryParameters["limit"]?.toIntOrNull() ?: 20)
+            call.json(TracyJson.encodeToString(entities.top(params.parent.key, window.first, window.second, params.limit)))
+        } catch (unknown: UnknownEntityKey) {
+            call.unknownKey(unknown)
+        }
+    }
+
+    get<EntitiesResource.Value> { params ->
+        val window = call.window(params.since, params.until) ?: return@get
+
+        try {
+            val result = entities.timeline(params.parent.key, params.value, window.first, window.second, params.limit)
             call.json(TracyJson.encodeToString(result))
         } catch (unknown: UnknownEntityKey) {
             call.unknownKey(unknown)
         }
     }
 
-    get("/api/entities/{key}/{value}") {
-        val key = call.parameters["key"] ?: return@get call.badRequest("key is required")
-        val value = call.parameters["value"] ?: return@get call.badRequest("value is required")
-        val since = call.longParam("since") ?: return@get call.badRequest("since is required")
-        val until = call.longParam("until") ?: return@get call.badRequest("until is required")
-
-        try {
-            val result =
-                entities.timeline(key, value, since, until, call.request.queryParameters["limit"]?.toIntOrNull() ?: 200)
-            call.json(TracyJson.encodeToString(result))
-        } catch (unknown: UnknownEntityKey) {
-            call.unknownKey(unknown)
-        }
-    }
-
-    post("/api/entities/{key}/unsuppress") {
-        val key = call.parameters["key"] ?: return@post call.badRequest("key is required")
+    post<EntitiesResource.Unsuppress> { params ->
         // Idempotent on purpose: a repeat is not an error, and an operator retrying a release
         // should not have to wonder whether the first attempt worked.
-        if (budget.unsuppress(key)) {
-            call.json("""{"key":"$key","suppressed":false}""")
+        if (budget.unsuppress(params.parent.key)) {
+            call.json("""{"key":"${params.parent.key}","suppressed":false}""")
         } else {
             call.respondText(
                 """{"error":"unknown key"}""",
@@ -136,11 +117,79 @@ public fun Route.queryRoutes() {
         }
     }
 
-    get("/api/services") {
+    get<ServicesResource> {
         call.json(TracyJson.encodeToString(query.listServices()))
     }
 }
 
+/**
+ * The window, validated once instead of in every handler.
+ *
+ * `since` and `until` are nullable in the resource rather than required, because a missing
+ * parameter has to answer `400` with a sentence — and a required constructor parameter answers
+ * with whatever Ktor makes of a deserialization failure.
+ */
+private suspend fun ApplicationCall.window(
+    since: Long?,
+    until: Long?,
+): Pair<Long, Long>? {
+    if (since == null) {
+        badRequest("since is required")
+        return null
+    }
+    if (until == null) {
+        badRequest("until is required")
+        return null
+    }
+    if (since > until) {
+        badRequest("since must be before until")
+        return null
+    }
+    return since to until
+}
+
+/** Null means the answer was already sent; a wrapper holding null means "no level filter". */
+private suspend fun ApplicationCall.level(name: String?): LevelFilter? {
+    if (name == null) return LevelFilter(null)
+    val parsed = runCatching { Level.valueOf(name.uppercase()) }.getOrNull()
+    if (parsed == null) {
+        badRequest("unknown level: $name")
+        return null
+    }
+    return LevelFilter(parsed)
+}
+
+private class LevelFilter(
+    val value: Level?,
+)
+
+private fun ApplicationCall.longParam(name: String): Long? = request.queryParameters[name]?.toLongOrNull()
+
+private suspend fun ApplicationCall.json(body: String) {
+    respondText(body, ContentType.Application.Json, HttpStatusCode.OK)
+}
+
+private suspend fun ApplicationCall.badRequest(message: String) {
+    respondText("""{"error":"$message"}""", ContentType.Application.Json, HttpStatusCode.BadRequest)
+}
+
+/**
+ * An unknown key is 400 with the list of real ones, never an empty 200: empty reads as "that never
+ * happened" when the truth is "nobody ever indexed this".
+ */
+private suspend fun ApplicationCall.unknownKey(unknown: UnknownEntityKey) {
+    val indexed = unknown.indexed.joinToString(",") { "\"$it\"" }
+    respondText(
+        """{"error":"key is not indexed","indexed":[$indexed]}""",
+        ContentType.Application.Json,
+        HttpStatusCode.BadRequest,
+    )
+}
+
+/**
+ * Kept as a free function rather than folded into the repository because it reaches across every
+ * partition table by name — see [QueryRepository.listServices], which is what callers use.
+ */
 internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
     TransactionContext.withCurrent(db) {
         val partitions =
@@ -205,26 +254,3 @@ internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
             )
         }
     }
-
-private fun ApplicationCall.longParam(name: String): Long? = request.queryParameters[name]?.toLongOrNull()
-
-private suspend fun ApplicationCall.json(body: String) {
-    respondText(body, ContentType.Application.Json, HttpStatusCode.OK)
-}
-
-private suspend fun ApplicationCall.badRequest(message: String) {
-    respondText("""{"error":"$message"}""", ContentType.Application.Json, HttpStatusCode.BadRequest)
-}
-
-/**
- * An unknown key is 400 with the list of real ones, never an empty 200: empty reads as "that never
- * happened" when the truth is "nobody ever indexed this".
- */
-private suspend fun ApplicationCall.unknownKey(unknown: UnknownEntityKey) {
-    val indexed = unknown.indexed.joinToString(",") { "\"$it\"" }
-    respondText(
-        """{"error":"key is not indexed","indexed":[$indexed]}""",
-        ContentType.Application.Json,
-        HttpStatusCode.BadRequest,
-    )
-}

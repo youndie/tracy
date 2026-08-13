@@ -10,6 +10,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.resources.Resources
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
@@ -63,6 +64,7 @@ class IngestRoutingTest {
             embeddedServer(CIO, port = 0) {
                 // The real container, so the test covers the wiring as well as the handler.
                 install(Koin) { modules(serverModule(config, db)) }
+                install(Resources)
                 routing { ingestRoutes() }
             }
         server.start(wait = false)

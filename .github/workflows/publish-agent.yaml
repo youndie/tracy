@@ -1,22 +1,16 @@
 name: Publish agent
 
 # The agent is the half of tracy that lives inside someone else's service, so it is the half that
-# has to be resolvable as an artifact.
-#
-# This workflow's own file is deliberately NOT in the paths below: editing the publisher is not a
-# reason to publish, and with dependency updates merging themselves an `actions/checkout` bump
-# would otherwise cut a release of the agent. `:shared` goes with it: `:agent` exposes it through `api`,
+# has to be resolvable as an artifact. `:shared` goes with it: `:agent` exposes it through `api`,
 # so a consumer who cannot resolve `:shared` cannot use `:agent` either.
+
+# Manual on purpose. Publishing used to fire on every push touching agent/, shared/ or the
+# version catalog, which meant a dependency bump cut a release of the agent — and with those
+# updates now merging themselves, nobody was even in the room when it happened. Releasing is a
+# decision; CI on the pull request is what proves the code builds.
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - agent/**
-      - shared/**
-      - gradle/libs.versions.toml
 
 jobs:
   publish:

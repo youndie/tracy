@@ -7,6 +7,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.resources.Resources
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
@@ -73,6 +74,10 @@ public fun Application.module(
     // One container, one instance of each collaborator. What this replaces: four repositories
     // constructed twice — once for the MCP facade, once for the HTTP routes.
     install(Koin) { modules(serverModule(config, db)) }
+
+    // Typed routes need this installed, and the failure without it is at runtime rather than at
+    // compile time — the route simply never matches.
+    install(Resources)
 
     val retention = get<Retention>()
     val self = if (config.selfService != null) get<SelfObservation>() else null
