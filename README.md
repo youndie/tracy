@@ -20,11 +20,16 @@ Same niche as [katcher](https://github.com/youndie/katcher) (crashes) and
 [metrik](https://github.com/youndie/metrik) (metrics): between "`kubectl logs` is enough" and
 "let's run Loki + Promtail + Grafana".
 
-> **Status: deployed, no real traffic yet.** The agent, the server, storage, traces and the MCP
-> endpoint are written and covered by 280 tests; the whole loop — a batch in, SQLite, a read back
-> over MCP — is exercised in a container, and the server runs on a staging cluster behind an
-> ingress. What has *not* happened yet: a real service sending real logs. The volume figures
-> below are arithmetic, not measurements, and they are labelled as such.
+> **Status: running on a staging cluster with four services reporting to it.** Everything below
+> is written and covered by 293 tests, a coding agent reads it over MCP, and the server has been
+> taking real traffic for a day.
+>
+> Two things that number does not cover, stated because a status line that only lists wins is not
+> a status line. Those four services are **quiet** — a day of them is on the order of a hundred
+> kilobytes, so the volume figures further down are still arithmetic rather than measurements,
+> and the sampling and screening behaviour has not been exercised at any interesting scale. And
+> `clock_skew_ms` currently measures the age of a record on arrival rather than the difference
+> between clocks; a retry inflates it. That is [M-110](BACKLOG.md).
 
 ## Overview
 
