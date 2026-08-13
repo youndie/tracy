@@ -4,6 +4,7 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
@@ -42,7 +43,7 @@ class EntityKeyBudgetTest {
     private fun repo(
         db: ISQLite,
         budget: EntityKeyBudget,
-    ) = IngestRepository(db, budget = budget, clock = { day })
+    ) = IngestBatchUseCase(IngestRepository(db, budget = budget, clock = { day }), clock = { day })
 
     @Test
     fun `a key within budget is not suppressed`() =
@@ -50,7 +51,7 @@ class EntityKeyBudgetTest {
             val db = freshDb()
             val budget = EntityKeyBudget(db, refsPerMinute = 100, suppressedTtlMillis = 1_000_000, clock = { day })
 
-            repo(db, budget).write(
+            repo(db, budget)(
                 BatchHeader("orders-api", "pod-a", null, 1),
                 (1L..10L).map { record(it, "order-$it") },
             )
@@ -65,7 +66,7 @@ class EntityKeyBudgetTest {
             val db = freshDb()
             val budget = EntityKeyBudget(db, refsPerMinute = 5, suppressedTtlMillis = 1_000_000, clock = { day })
 
-            repo(db, budget).write(
+            repo(db, budget)(
                 BatchHeader("orders-api", "pod-a", null, 1),
                 (1L..50L).map { record(it, "order-$it") },
             )
@@ -81,7 +82,7 @@ class EntityKeyBudgetTest {
             val path = "/tmp/tracy-budget-restart-${Random.nextLong()}.db"
             val first = openDatabase(path)
             val budget = EntityKeyBudget(first, refsPerMinute = 5, suppressedTtlMillis = 1_000_000, clock = { day })
-            repo(first, budget).write(
+            repo(first, budget)(
                 BatchHeader("orders-api", "pod-a", null, 1),
                 (1L..50L).map { record(it, "order-$it") },
             )
@@ -102,13 +103,13 @@ class EntityKeyBudgetTest {
             val db = freshDb()
             var now = day
             val budget = EntityKeyBudget(db, refsPerMinute = 5, suppressedTtlMillis = 1_000_000, clock = { now })
-            val repository = IngestRepository(db, budget = budget, clock = { now })
+            val repository = IngestBatchUseCase(IngestRepository(db, budget = budget, clock = { now }), clock = { now })
 
-            repository.write(BatchHeader("orders-api", "pod-a", null, 1), (1L..50L).map { record(it, "o$it") })
+            repository(BatchHeader("orders-api", "pod-a", null, 1), (1L..50L).map { record(it, "o$it") })
             val afterFirst = db.scalar("SELECT count(*) FROM entity_ref_20260801") ?: 0
 
             now += 60_000
-            repository.write(BatchHeader("orders-api", "pod-a", null, 2), (51L..80L).map { record(it, "o$it") })
+            repository(BatchHeader("orders-api", "pod-a", null, 2), (51L..80L).map { record(it, "o$it") })
 
             // Releasing every minute would index the first N references of each minute and drop
             // the rest — partial data that looks complete.
@@ -120,7 +121,7 @@ class EntityKeyBudgetTest {
         runTest {
             val db = freshDb()
             val budget = EntityKeyBudget(db, refsPerMinute = 5, suppressedTtlMillis = 1_000_000, clock = { day })
-            repo(db, budget).write(
+            repo(db, budget)(
                 BatchHeader("orders-api", "pod-a", null, 1),
                 (1L..50L).map { record(it, "order-$it") },
             )
@@ -145,8 +146,10 @@ class EntityKeyBudgetTest {
             val db = freshDb()
             var now = day
             val budget = EntityKeyBudget(db, refsPerMinute = 5, suppressedTtlMillis = 1_000, clock = { now })
-            IngestRepository(db, budget = budget, clock = { now })
-                .write(BatchHeader("orders-api", "pod-a", null, 1), (1L..50L).map { record(it, "o$it") })
+            IngestBatchUseCase(IngestRepository(db, budget = budget, clock = { now }), clock = { now })(
+                BatchHeader("orders-api", "pod-a", null, 1),
+                (1L..50L).map { record(it, "o$it") },
+            )
 
             now += 10_000
             budget.expireStale()

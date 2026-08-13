@@ -4,8 +4,10 @@ import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import org.koin.dsl.module
 import ru.workinprogress.tracy.server.db.EntityKeyBudget
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.mcp.ToolFacade
 import ru.workinprogress.tracy.server.query.EntityRepository
+import ru.workinprogress.tracy.server.query.EntityTimelineUseCase
 import ru.workinprogress.tracy.server.query.QueryRepository
 import ru.workinprogress.tracy.server.retention.Retention
 import ru.workinprogress.tracy.server.trace.SpanSearchRepository
@@ -43,11 +45,13 @@ public fun serverModule(
             )
         }
         single { IngestRepository(db, budget = get(), clock = { currentTimeMillis() }) }
+        single { IngestBatchUseCase(get(), clock = { currentTimeMillis() }) }
 
         single { QueryRepository(db) }
         single { TraceRepository(db) }
         single { SpanSearchRepository(db) }
         single { EntityRepository(db) }
+        single { EntityTimelineUseCase(get()) }
 
         single {
             Retention(
@@ -67,7 +71,7 @@ public fun serverModule(
         config.selfService?.let { service ->
             single {
                 SelfObservation(
-                    repository = get(),
+                    acceptBatch = get(),
                     service = service,
                     instanceId = config.instanceId,
                     release = null,

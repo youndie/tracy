@@ -4,6 +4,7 @@ import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import kotlinx.coroutines.test.runTest
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
@@ -26,7 +27,7 @@ class TextSearchTest {
     private fun freshDb(): ISQLite = openDatabase("/tmp/tracy-fts-${Random.nextLong()}.db")
 
     private suspend fun seed(db: ISQLite) {
-        IngestRepository(db, clock = { day }).write(
+        IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
             BatchHeader("orders-api", "pod-a", "1.0", 1),
             listOf(
                 LogRecord(day + 1, 1, Level.WARN, "Payments", "payment gateway timeout"),

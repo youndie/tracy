@@ -11,7 +11,6 @@ import org.koin.ktor.ext.inject
 import ru.workinprogress.tracy.server.ServerConfig
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.EntityKeyBudget
-import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.wire.INGEST_PATH
 import ru.workinprogress.tracy.wire.IngestHeaders
 import ru.workinprogress.tracy.wire.IngestResponse
@@ -20,7 +19,7 @@ import ru.workinprogress.tracy.wire.TracyJson
 
 public fun Route.ingestRoutes() {
     val config by inject<ServerConfig>()
-    val repository by inject<IngestRepository>()
+    val acceptBatch by inject<IngestBatchUseCase>()
 
     // The breaker's decision travels back to the agent on every accepted response, so the route
     // needs the budget itself rather than a callback threaded in from Application (research D15).
@@ -67,7 +66,7 @@ public fun Route.ingestRoutes() {
             )
 
         val result =
-            runCatching { repository.write(header, decoded.lines) }
+            runCatching { acceptBatch(header, decoded.lines) }
                 .getOrElse {
                     // 503 rather than 500: this is retriable, and the agent must keep the batch.
                     call.respondJson(HttpStatusCode.ServiceUnavailable, """{"error":"unavailable"}""")

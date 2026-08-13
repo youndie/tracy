@@ -14,6 +14,7 @@ import org.koin.ktor.plugin.Koin
 import ru.workinprogress.tracy.server.ServerConfig
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.server.serverModule
 import ru.workinprogress.tracy.wire.Level
@@ -31,7 +32,7 @@ class ServiceSummaryTest {
     fun `produced and stored are reported separately`() =
         runTest {
             val db = openDatabase("/tmp/tracy-summary-${Random.nextLong()}.db")
-            IngestRepository(db, clock = { day }).write(
+            IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
                 // The service produced a megabyte and dropped most of it; two records survived.
                 BatchHeader("orders-api", "pod-a", "1.0", 1, producedBytes = 1_000_000, dropped = 42),
                 (1L..2L).map {
@@ -74,7 +75,7 @@ class ServiceSummaryTest {
     fun `references are counted per key`() =
         runTest {
             val db = openDatabase("/tmp/tracy-summary-refs-${Random.nextLong()}.db")
-            IngestRepository(db, clock = { day }).write(
+            IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
                 BatchHeader("orders-api", "pod-a", "1.0", 1),
                 (1L..5L).map {
                     LogRecord(
@@ -124,7 +125,7 @@ class ServiceSummaryTest {
     fun `an unindexed key is rejected with the real ones listed`() =
         runTest {
             val db = openDatabase("/tmp/tracy-summary-key-${Random.nextLong()}.db")
-            IngestRepository(db, clock = { day }).write(
+            IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
                 BatchHeader("orders-api", "pod-a", "1.0", 1),
                 listOf(
                     LogRecord(

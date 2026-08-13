@@ -150,10 +150,8 @@ public class ToolFacade(
             remember(timeline.touches.mapNotNull { it.entryId })
             timeline
         } catch (unknown: UnknownEntityKey) {
-            // Not an empty result: empty reads as "that never happened" when the truth is
-            // "nobody ever indexed this key". The two cases below read very differently to an
-            // agent, and the message has to separate them — a bare "indexed keys: " with nothing
-            // after it says neither.
+            // Kept as a catch here only because the facade still calls the repository directly;
+            // the policy itself lives in EntityTimelineUseCase now.
             McpRefusal(
                 "key is not indexed",
                 if (unknown.indexed.isEmpty()) {

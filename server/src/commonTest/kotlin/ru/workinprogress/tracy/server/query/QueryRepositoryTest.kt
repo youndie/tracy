@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.ExceptionInfo
 import ru.workinprogress.tracy.wire.Level
@@ -44,8 +45,8 @@ class QueryRepositoryTest {
     )
 
     private suspend fun seed(db: ISQLite) {
-        val repo = IngestRepository(db, clock = { day })
-        repo.write(
+        val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
+        repo(
             BatchHeader("orders-api", "pod-a", "1.0.0", 1),
             listOf(
                 record(1),
@@ -54,7 +55,7 @@ class QueryRepositoryTest {
                 record(4, fields = mapOf("orderId" to JsonPrimitive("12345")), indexed = listOf("orderId")),
             ),
         )
-        repo.write(BatchHeader("billing", "pod-b", "1.0.0", 1), listOf(record(5, "charging card")))
+        repo(BatchHeader("billing", "pod-b", "1.0.0", 1), listOf(record(5, "charging card")))
     }
 
     @Test
@@ -194,8 +195,8 @@ class QueryRepositoryTest {
     fun `frequencies come from counters and are exact`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
-            repo.write(
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
+            repo(
                 BatchHeader("orders-api", "pod-a", "1.0.0", 1),
                 listOf(
                     // One stored body, forty thousand occurrences: exactly the gap sampling opens
@@ -215,8 +216,8 @@ class QueryRepositoryTest {
     fun `a step turns a total into a series`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
-            repo.write(
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
+            repo(
                 BatchHeader("orders-api", "pod-a", "1.0.0", 1),
                 listOf(
                     TemplateCount(windowStart = day, template = "order created", level = Level.INFO, count = 10),
@@ -244,10 +245,10 @@ class QueryRepositoryTest {
     fun `releases are kept apart so a deploy can be blamed`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val counter = TemplateCount(windowStart = day, template = "order created", level = Level.INFO, count = 5)
-            repo.write(BatchHeader("orders-api", "pod-a", "1.0.0", 1), listOf(counter))
-            repo.write(BatchHeader("orders-api", "pod-a", "1.0.1", 2), listOf(counter.copy(count = 500)))
+            repo(BatchHeader("orders-api", "pod-a", "1.0.0", 1), listOf(counter))
+            repo(BatchHeader("orders-api", "pod-a", "1.0.1", 2), listOf(counter.copy(count = 500)))
 
             val before = QueryRepository(db).templateStats(release = "1.0.0", since = day - 1000, until = day + 1000)
             val after = QueryRepository(db).templateStats(release = "1.0.1", since = day - 1000, until = day + 1000)

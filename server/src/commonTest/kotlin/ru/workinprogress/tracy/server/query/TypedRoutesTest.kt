@@ -16,6 +16,7 @@ import org.koin.ktor.plugin.Koin
 import ru.workinprogress.tracy.server.ServerConfig
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.server.serverModule
 import ru.workinprogress.tracy.server.trace.traceRoutes
@@ -40,7 +41,7 @@ class TypedRoutesTest {
 
     private suspend fun withServer(block: suspend (client: HttpClient, port: Int) -> Unit) {
         val db: ISQLite = openDatabase("/tmp/tracy-typed-${Random.nextLong()}.db")
-        IngestRepository(db, clock = { day }).write(
+        IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
             BatchHeader("orders-api", "pod-a", "1.0", 1),
             listOf(
                 LogRecord(

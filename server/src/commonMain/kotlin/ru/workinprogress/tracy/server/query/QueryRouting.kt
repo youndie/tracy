@@ -34,7 +34,7 @@ public data class ServiceSummary(
 
 public fun Route.queryRoutes() {
     val query by inject<QueryRepository>()
-    val entities by inject<EntityRepository>()
+    val entityLookup by inject<EntityTimelineUseCase>()
     val budget by inject<EntityKeyBudget>()
 
     get<LogsResource> { params ->
@@ -85,21 +85,18 @@ public fun Route.queryRoutes() {
     get<EntitiesResource.Top> { params ->
         val window = call.window(params.since, params.until) ?: return@get
 
-        try {
-            call.json(TracyJson.encodeToString(entities.top(params.parent.key, window.first, window.second, params.limit)))
-        } catch (unknown: UnknownEntityKey) {
-            call.unknownKey(unknown)
+        when (val result = entityLookup.top(params.parent.key, window.first, window.second, params.limit)) {
+            is EntityLookup.Found -> call.json(TracyJson.encodeToString(result.value))
+            is EntityLookup.KeyNotIndexed -> call.unknownKey(result)
         }
     }
 
     get<EntitiesResource.Value> { params ->
         val window = call.window(params.since, params.until) ?: return@get
 
-        try {
-            val result = entities.timeline(params.parent.key, params.value, window.first, window.second, params.limit)
-            call.json(TracyJson.encodeToString(result))
-        } catch (unknown: UnknownEntityKey) {
-            call.unknownKey(unknown)
+        when (val result = entityLookup.timeline(params.parent.key, params.value, window.first, window.second, params.limit)) {
+            is EntityLookup.Found -> call.json(TracyJson.encodeToString(result.value))
+            is EntityLookup.KeyNotIndexed -> call.unknownKey(result)
         }
     }
 
@@ -177,7 +174,7 @@ private suspend fun ApplicationCall.badRequest(message: String) {
  * An unknown key is 400 with the list of real ones, never an empty 200: empty reads as "that never
  * happened" when the truth is "nobody ever indexed this".
  */
-private suspend fun ApplicationCall.unknownKey(unknown: UnknownEntityKey) {
+private suspend fun ApplicationCall.unknownKey(unknown: EntityLookup.KeyNotIndexed) {
     val indexed = unknown.indexed.joinToString(",") { "\"$it\"" }
     respondText(
         """{"error":"key is not indexed","indexed":[$indexed]}""",

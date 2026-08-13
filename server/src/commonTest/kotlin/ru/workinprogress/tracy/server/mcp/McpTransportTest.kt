@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import ru.workinprogress.tracy.server.ServerConfig
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.server.query.EntityRepository
 import ru.workinprogress.tracy.server.query.QueryRepository
@@ -54,7 +55,7 @@ class McpTransportTest {
         val facade =
             ToolFacade(QueryRepository(db), TraceRepository(db), SpanSearchRepository(db), EntityRepository(db))
 
-        IngestRepository(db, clock = { day }).write(
+        IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
             BatchHeader("orders-api", "pod-a", "1.0", 1),
             listOf(
                 LogRecord(

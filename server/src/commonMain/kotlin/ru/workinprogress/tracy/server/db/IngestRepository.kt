@@ -46,72 +46,76 @@ public class IngestRepository(
     private val budget: EntityKeyBudget? = null,
     private val clock: () -> Long,
 ) {
-    public suspend fun write(
-        header: BatchHeader,
-        lines: List<BatchLine>,
-    ): WriteResult =
-        TransactionContext.withCurrent(db) {
-            val now = clock()
-            val serviceId = dictionaries.serviceId(this, header.service, now)
+    /**
+     * The transaction a batch is written inside.
+     *
+     * The envelope stays here and the sequence moved to [ru.workinprogress.tracy.server.ingest.IngestBatchUseCase]:
+     * splitting them the other way — a use case calling repository methods that each open their
+     * own transaction — would trade an invariant for a layer diagram. The batch marker has to land
+     * with the records it marks, or a retry after a partial failure writes them twice.
+     */
+    public suspend fun <T> transaction(block: suspend TransactionContext.() -> T): T = TransactionContext.withCurrent(db, block)
 
-            // Clock skew is recorded rather than corrected: the trace timeline is assembled from
-            // several pods, and a silently "fixed" timestamp would reorder cause and effect
-            // without saying so (research risk 6).
-            val sourceTs = lines.firstNotNullOfOrNull { it.sourceTimestamp() }
-            val skew = if (sourceTs == null) 0L else now - sourceTs
+    internal suspend fun serviceId(
+        executor: QueryExecutor,
+        name: String,
+        now: Long,
+    ): Long = dictionaries.serviceId(executor, name, now)
 
-            val instanceId = dictionaries.instanceId(this, serviceId, header.instance, now, skew)
+    internal suspend fun instanceId(
+        executor: QueryExecutor,
+        serviceId: Long,
+        name: String,
+        now: Long,
+        skew: Long,
+    ): Long = dictionaries.instanceId(executor, serviceId, name, now, skew)
 
-            if (alreadyStored(this, instanceId, header.seq)) {
-                return@withCurrent WriteResult(accepted = 0, duplicate = true)
-            }
+    /**
+     * What the service produced, as opposed to what survived. Reporting only the latter would
+     * answer "how much did tracy decide to keep" when the question is "who is noisy" (research D13).
+     */
+    internal suspend fun recordProduced(
+        executor: QueryExecutor,
+        serviceId: Long,
+        now: Long,
+        producedBytes: Long,
+        dropped: Long,
+    ) {
+        executor.execute(
+            Statement
+                .create(
+                    """INSERT INTO service_produced (service_id, minute, bytes, dropped)
+                       VALUES (:service, :minute, :bytes, :dropped)
+                       ON CONFLICT(service_id, minute)
+                       DO UPDATE SET bytes = bytes + :bytes, dropped = dropped + :dropped""",
+                ).apply {
+                    bind("service", serviceId)
+                    bind("minute", now / 60_000 * 60_000)
+                    bind("bytes", producedBytes)
+                    bind("dropped", dropped)
+                },
+        )
+    }
 
-            var accepted = 0
-            for (line in lines) {
-                when (line) {
-                    is LogRecord -> writeRecord(this, serviceId, instanceId, header, line, now)
-                    is Span -> writeSpan(this, serviceId, instanceId, line, now)
-                    is EntityRef -> writeEntityRef(this, serviceId, instanceId, line, null)
-                    is TemplateCount -> writeCounter(this, serviceId, header, line)
-                }
-                accepted++
-            }
+    /** The idempotency marker. Written last, inside the same transaction as what it marks. */
+    internal suspend fun markBatch(
+        executor: QueryExecutor,
+        instanceId: Long,
+        seq: Long,
+        now: Long,
+    ) {
+        executor.execute(
+            Statement
+                .create("INSERT INTO ingest_batch (instance_id, seq, received_at) VALUES (:i, :s, :t)")
+                .apply {
+                    bind("i", instanceId)
+                    bind("s", seq)
+                    bind("t", now)
+                },
+        )
+    }
 
-            // What the service produced, as opposed to what survived. Reporting only the latter
-            // would answer "how much did tracy decide to keep" when the question is "who is
-            // noisy" (research D13).
-            if (header.producedBytes > 0 || header.dropped > 0) {
-                execute(
-                    Statement
-                        .create(
-                            """INSERT INTO service_produced (service_id, minute, bytes, dropped)
-                               VALUES (:service, :minute, :bytes, :dropped)
-                               ON CONFLICT(service_id, minute)
-                               DO UPDATE SET bytes = bytes + :bytes, dropped = dropped + :dropped""",
-                        ).apply {
-                            bind("service", serviceId)
-                            bind("minute", now / 60_000 * 60_000)
-                            bind("bytes", header.producedBytes)
-                            bind("dropped", header.dropped)
-                        },
-                )
-            }
-
-            execute(
-                Statement
-                    .create(
-                        "INSERT INTO ingest_batch (instance_id, seq, received_at) VALUES (:i, :s, :t)",
-                    ).apply {
-                        bind("i", instanceId)
-                        bind("s", header.seq)
-                        bind("t", now)
-                    },
-            )
-
-            WriteResult(accepted, duplicate = false)
-        }
-
-    private suspend fun alreadyStored(
+    internal suspend fun alreadyStored(
         executor: QueryExecutor,
         instanceId: Long,
         seq: Long,
@@ -128,7 +132,7 @@ public class IngestRepository(
             .rows
             .isNotEmpty()
 
-    private suspend fun writeRecord(
+    internal suspend fun writeRecord(
         executor: QueryExecutor,
         serviceId: Long,
         instanceId: Long,
@@ -198,7 +202,7 @@ public class IngestRepository(
         }
     }
 
-    private suspend fun writeSpan(
+    internal suspend fun writeSpan(
         executor: QueryExecutor,
         serviceId: Long,
         instanceId: Long,
@@ -237,7 +241,7 @@ public class IngestRepository(
      * [entryId] is null when the body was sampled away. That is not a degenerate case — it is the
      * normal one for a successful request, and the whole reason references exist (research D12).
      */
-    private suspend fun writeEntityRef(
+    internal suspend fun writeEntityRef(
         executor: QueryExecutor,
         serviceId: Long,
         instanceId: Long,
@@ -279,7 +283,7 @@ public class IngestRepository(
      * exactly why the batch has to be idempotent: a redelivery would not duplicate a row here,
      * it would inflate a number.
      */
-    private suspend fun writeCounter(
+    internal suspend fun writeCounter(
         executor: QueryExecutor,
         serviceId: Long,
         header: BatchHeader,
@@ -313,13 +317,5 @@ public class IngestRepository(
             .get(0)
             .asLong()
 }
-
-private fun BatchLine.sourceTimestamp(): Long? =
-    when (this) {
-        is LogRecord -> ts
-        is Span -> ts
-        is EntityRef -> ts
-        is TemplateCount -> null
-    }
 
 private fun JsonPrimitive.contentOrNull(): String? = content.takeIf { it != "null" }

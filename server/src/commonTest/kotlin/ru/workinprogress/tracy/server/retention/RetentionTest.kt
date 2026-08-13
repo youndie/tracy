@@ -6,6 +6,7 @@ import kotlinx.coroutines.test.runTest
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
 import ru.workinprogress.tracy.server.db.dayKey
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
@@ -35,7 +36,7 @@ class RetentionTest {
         count: Int = 5,
     ) {
         val ts = day + offsetDays * 86_400_000L
-        IngestRepository(db, clock = { ts }).write(
+        IngestBatchUseCase(IngestRepository(db, clock = { ts }), clock = { ts })(
             BatchHeader("orders-api", "pod-a", "1.0", seq),
             (1..count).map {
                 LogRecord(ts = ts + it, seq = seq * 1000 + it, level = Level.INFO, logger = "L", message = "order created")
@@ -114,7 +115,7 @@ class RetentionTest {
     fun `counters outlive bodies`() =
         runTest {
             val db = freshDb()
-            IngestRepository(db, clock = { day }).write(
+            IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
                 BatchHeader("orders-api", "pod-a", "1.0", 1),
                 listOf(
                     LogRecord(ts = day, seq = 1, level = Level.INFO, logger = "L", message = "order created"),

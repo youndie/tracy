@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.EntityRef
 import ru.workinprogress.tracy.wire.Level
@@ -45,12 +46,12 @@ class EntityRepositoryTest {
     fun `an entity is followed across two traces an hour apart`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val traceA = "4bf92f3577b34da6a3ce929d0e0e4736"
             val traceB = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-            repo.write(BatchHeader("orders-api", "pod-a", null, 1), listOf(record(1, traceA, "12345")))
-            repo.write(
+            repo(BatchHeader("orders-api", "pod-a", null, 1), listOf(record(1, traceA, "12345")))
+            repo(
                 BatchHeader("worker", "pod-w", null, 1),
                 listOf(EntityRef(traceId = traceB, key = "orderId", value = "12345", ts = hourLater)),
             )
@@ -68,8 +69,8 @@ class EntityRepositoryTest {
     fun `a reference without a body is data rather than nothing`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
-            repo.write(
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
+            repo(
                 BatchHeader("orders-api", "pod-a", null, 1),
                 listOf(EntityRef(traceId = "4bf92f3577b34da6a3ce929d0e0e4736", key = "orderId", value = "12345", ts = day)),
             )
@@ -89,8 +90,15 @@ class EntityRepositoryTest {
     fun `a reference with a body points at it`() =
         runTest {
             val db = freshDb()
-            IngestRepository(db, clock = { day })
-                .write(BatchHeader("orders-api", "pod-a", null, 1), listOf(record(1, "4bf92f3577b34da6a3ce929d0e0e4736", "12345")))
+            IngestBatchUseCase(
+                IngestRepository(db, clock = {
+                    day
+                }),
+                clock = { day },
+            )(
+                BatchHeader("orders-api", "pod-a", null, 1),
+                listOf(record(1, "4bf92f3577b34da6a3ce929d0e0e4736", "12345")),
+            )
 
             val touch =
                 EntityRepository(db)
@@ -105,8 +113,15 @@ class EntityRepositoryTest {
     fun `an unindexed key is an error with the list of real ones`() =
         runTest {
             val db = freshDb()
-            IngestRepository(db, clock = { day })
-                .write(BatchHeader("orders-api", "pod-a", null, 1), listOf(record(1, "4bf92f3577b34da6a3ce929d0e0e4736", "12345")))
+            IngestBatchUseCase(
+                IngestRepository(db, clock = {
+                    day
+                }),
+                clock = { day },
+            )(
+                BatchHeader("orders-api", "pod-a", null, 1),
+                listOf(record(1, "4bf92f3577b34da6a3ce929d0e0e4736", "12345")),
+            )
 
             // An empty result would read as "that never happened" when the truth is "nobody ever
             // indexed this key".
@@ -121,8 +136,8 @@ class EntityRepositoryTest {
     fun `top values are counted for an investigation`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
-            repo.write(
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
+            repo(
                 BatchHeader("orders-api", "pod-a", null, 1),
                 (1L..10L).map { EntityRef("4bf92f3577b34da6a3ce929d0e0e4736", "ip", if (it <= 7) "10.0.0.1" else "10.0.0.2", day + it) },
             )
@@ -136,8 +151,15 @@ class EntityRepositoryTest {
     fun `a window excludes what is outside it`() =
         runTest {
             val db = freshDb()
-            IngestRepository(db, clock = { day })
-                .write(BatchHeader("orders-api", "pod-a", null, 1), listOf(record(1, "4bf92f3577b34da6a3ce929d0e0e4736", "12345")))
+            IngestBatchUseCase(
+                IngestRepository(db, clock = {
+                    day
+                }),
+                clock = { day },
+            )(
+                BatchHeader("orders-api", "pod-a", null, 1),
+                listOf(record(1, "4bf92f3577b34da6a3ce929d0e0e4736", "12345")),
+            )
 
             val timeline =
                 EntityRepository(db).timeline("orderId", "12345", since = day + 50_000, until = day + 60_000)

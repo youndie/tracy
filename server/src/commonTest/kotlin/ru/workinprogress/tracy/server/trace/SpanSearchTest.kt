@@ -4,6 +4,7 @@ import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import kotlinx.coroutines.test.runTest
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.Span
 import ru.workinprogress.tracy.wire.SpanKind
@@ -41,8 +42,8 @@ class SpanSearchTest {
     )
 
     private suspend fun seed(db: ISQLite) {
-        val repo = IngestRepository(db, clock = { day })
-        repo.write(
+        val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
+        repo(
             BatchHeader("orders-api", "pod-a", "1.0", 1),
             listOf(
                 span(1, "orders-api", "POST /orders", 40),
@@ -51,7 +52,7 @@ class SpanSearchTest {
                 span(4, "orders-api", "POST /orders", 900, error = 1),
             ),
         )
-        repo.write(
+        repo(
             BatchHeader("billing", "pod-b", "1.0", 1),
             listOf(span(5, "billing", "POST /charge", 3200)),
         )

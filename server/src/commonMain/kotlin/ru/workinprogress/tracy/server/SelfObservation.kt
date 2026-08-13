@@ -1,7 +1,7 @@
 package ru.workinprogress.tracy.server
 
 import ru.workinprogress.tracy.server.db.BatchHeader
-import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
 import ru.workinprogress.tracy.wire.Redactor
@@ -23,7 +23,7 @@ import ru.workinprogress.tracy.wire.TemplateCount
  * construction go here: a start, a retention sweep.
  */
 public class SelfObservation(
-    private val repository: IngestRepository,
+    private val acceptBatch: IngestBatchUseCase,
     private val service: String,
     private val instanceId: String,
     private val release: String?,
@@ -74,7 +74,7 @@ public class SelfObservation(
         // Failure here must never propagate: a server that cannot write its own log line still
         // has to accept everyone else's.
         runCatching {
-            repository.write(
+            acceptBatch(
                 BatchHeader(
                     service = service,
                     instance = instanceId,

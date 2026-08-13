@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.BatchLine
 import ru.workinprogress.tracy.wire.Level
@@ -69,11 +70,11 @@ class TraceEndToEndTest {
         spanId = spanId,
     )
 
-    private suspend fun IngestRepository.send(
+    private suspend fun IngestBatchUseCase.send(
         service: String,
         seq: Long,
         lines: List<BatchLine>,
-    ) = write(BatchHeader(service, "$service-pod", "1.0.0", seq), lines)
+    ) = this(BatchHeader(service, "$service-pod", "1.0.0", seq), lines)
 
     private fun TraceNode.find(name: String): TraceNode? = if (this.name == name) this else children.firstNotNullOfOrNull { it.find(name) }
 
@@ -81,7 +82,7 @@ class TraceEndToEndTest {
     fun `three services become one tree`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             // Deliberately out of order: B reports before A, which is what happens when the
             // callee finishes first and the caller is still writing its response.
@@ -126,7 +127,7 @@ class TraceEndToEndTest {
     fun `a service that stored nothing shows as a lost link`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             // The provider is not instrumented at all: B calls it and nothing comes back.
             repo.send(
@@ -155,7 +156,7 @@ class TraceEndToEndTest {
     fun `unattributed time surfaces where nobody instrumented`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             repo.send(
                 "orders-api",
@@ -181,7 +182,7 @@ class TraceEndToEndTest {
     fun `an unterminated span survives and is marked`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             repo.send(
                 "orders-api",
@@ -202,7 +203,7 @@ class TraceEndToEndTest {
     fun `records without a span stay at trace level`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             repo.send(
                 "orders-api",
@@ -222,7 +223,7 @@ class TraceEndToEndTest {
     fun `a trace spanning midnight is assembled from both partitions`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val nextDay = day + 86_400_000L
 
             repo.send("orders-api", 1, listOf(span("aaaaaaaaaaaaaaaa", null, "POST /orders", SpanKind.SERVER, day + 86_399_000, 3000)))
@@ -253,7 +254,7 @@ class TraceEndToEndTest {
     fun `field values do not leak into the tree`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             repo.send(
                 "orders-api",

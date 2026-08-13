@@ -3,6 +3,7 @@ package ru.workinprogress.tracy.server
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import kotlinx.coroutines.test.runTest
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.query.QueryRepository
 import ru.workinprogress.tracy.wire.Level
 import kotlin.random.Random
@@ -24,7 +25,7 @@ class SelfObservationTest {
 
     private fun observation(db: ISQLite) =
         SelfObservation(
-            repository = IngestRepository(db, clock = { day }),
+            acceptBatch = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day }),
             service = "tracy-server",
             instanceId = "pod-a",
             release = "0.1.0",
@@ -112,7 +113,7 @@ class SelfObservationTest {
             // A repository pointed at a database that was never migrated: every write throws.
             val broken =
                 SelfObservation(
-                    repository = IngestRepository(openBrokenDatabase(), clock = { day }),
+                    acceptBatch = IngestBatchUseCase(IngestRepository(openBrokenDatabase(), clock = { day }), clock = { day }),
                     service = "tracy-server",
                     instanceId = "pod-a",
                     release = null,

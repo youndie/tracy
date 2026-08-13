@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import ru.workinprogress.tracy.server.db.BatchHeader
 import ru.workinprogress.tracy.server.db.IngestRepository
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.server.query.EntityRepository
 import ru.workinprogress.tracy.server.query.QueryRepository
@@ -33,7 +34,7 @@ class ToolFacadeTest {
     private fun facade(db: ISQLite) = ToolFacade(QueryRepository(db), TraceRepository(db), SpanSearchRepository(db), EntityRepository(db))
 
     private suspend fun seed(db: ISQLite) {
-        IngestRepository(db, clock = { day }).write(
+        IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
             BatchHeader("orders-api", "pod-a", "1.0", 1),
             listOf(
                 LogRecord(
@@ -169,7 +170,7 @@ class ToolFacadeTest {
     fun `with nothing indexed at all the refusal says so instead of trailing off`() =
         runTest {
             val db = freshDb()
-            IngestRepository(db, clock = { day }).write(
+            IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
                 BatchHeader("orders-api", "pod-a", "1.0", 1),
                 listOf(LogRecord(day + 1, 1, Level.INFO, "L", "no keys here")),
             )

@@ -8,6 +8,7 @@ import kotlinx.cinterop.ptr
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
 import platform.posix.stat
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.Level
 import ru.workinprogress.tracy.wire.LogRecord
@@ -58,7 +59,7 @@ class StorageBenchmarkTest {
         count: Int,
         distinctTemplates: Int,
     ): Pair<Double, Long> {
-        val repo = IngestRepository(db, clock = { day })
+        val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
         val started = TimeSource.Monotonic.markNow()
         var seq = 0L
         val batchSize = 500
@@ -68,7 +69,7 @@ class StorageBenchmarkTest {
                     val n = seq + it
                     record(n, "order event ${n % distinctTemplates} happened")
                 }
-            repo.write(BatchHeader("orders-api", "pod-a", "1.0.0", seq), lines)
+            repo(BatchHeader("orders-api", "pod-a", "1.0.0", seq), lines)
             seq += batchSize
         }
         val perRecord = started.elapsedNow().inWholeMicroseconds.toDouble() / count
@@ -125,12 +126,12 @@ class StorageBenchmarkTest {
         runBlocking {
             val path = freshPath()
             val db = openDatabase(path)
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             // 5 000 references over one key, the shape of an aggregation like "top IPs".
             var seq = 0L
             repeat(10) {
-                repo.write(
+                repo(
                     BatchHeader("orders-api", "pod-a", null, seq),
                     (0 until 500).map { i ->
                         val n = seq + i

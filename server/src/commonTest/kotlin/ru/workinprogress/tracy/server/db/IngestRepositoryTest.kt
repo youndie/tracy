@@ -5,6 +5,7 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
+import ru.workinprogress.tracy.server.ingest.IngestBatchUseCase
 import ru.workinprogress.tracy.server.openDatabase
 import ru.workinprogress.tracy.wire.EntityRef
 import ru.workinprogress.tracy.wire.ExceptionInfo
@@ -79,9 +80,9 @@ class IngestRepositoryTest {
     fun `a batch is stored and counted`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            val result = repo.write(header(), listOf(record(1), record(2, message = "order paid")))
+            val result = repo(header(), listOf(record(1), record(2, message = "order paid")))
 
             assertEquals(2, result.accepted)
             assertTrue(!result.duplicate)
@@ -92,7 +93,7 @@ class IngestRepositoryTest {
     fun `the partition is created on first use`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
             assertNull(
                 db
@@ -100,7 +101,7 @@ class IngestRepositoryTest {
                     ?.takeIf { it > 0 },
             )
 
-            repo.write(header(), listOf(record()))
+            repo(header(), listOf(record()))
 
             assertEquals(
                 1,
@@ -112,9 +113,9 @@ class IngestRepositoryTest {
     fun `a structured message is stored once as a template`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(header(1), (1L..50L).map { record(it) })
+            repo(header(1), (1L..50L).map { record(it) })
 
             // Fifty records, one template, and no per-row copy of the text (research D5).
             assertEquals(1, db.scalar("SELECT count(*) FROM log_template"))
@@ -126,9 +127,9 @@ class IngestRepositoryTest {
     fun `an interpolated message keeps its raw text`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(header(), listOf(record(message = "order 8123 not found", untrusted = 1)))
+            repo(header(), listOf(record(message = "order 8123 not found", untrusted = 1)))
 
             assertEquals(
                 "order 8123 not found",
@@ -141,9 +142,9 @@ class IngestRepositoryTest {
     fun `templates are searchable through fts`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(header(), listOf(record(message = "payment provider rejected")))
+            repo(header(), listOf(record(message = "payment provider rejected")))
 
             // The trigram tokenizer is what makes a substring query use the index. This is the
             // single fact the whole storage design rests on (research 1.1).
@@ -162,9 +163,9 @@ class IngestRepositoryTest {
     fun `a trace id is stored as bytes and reads back as hex`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(header(), listOf(record()))
+            repo(header(), listOf(record()))
 
             assertEquals(16, db.scalar("SELECT length(trace_id) FROM log_entry_20260801"))
             assertEquals(
@@ -177,15 +178,15 @@ class IngestRepositoryTest {
     fun `a redelivered batch changes nothing`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val lines =
                 listOf(
                     record(),
                     TemplateCount(windowStart = day, template = "order created", level = Level.INFO, count = 7),
                 )
 
-            repo.write(header(seq = 4218), lines)
-            val second = repo.write(header(seq = 4218), lines)
+            repo(header(seq = 4218), lines)
+            val second = repo(header(seq = 4218), lines)
 
             assertTrue(second.duplicate)
             assertEquals(1, db.scalar("SELECT count(*) FROM log_entry_20260801"))
@@ -198,11 +199,11 @@ class IngestRepositoryTest {
     fun `counters from different instances are summed`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val counter = TemplateCount(windowStart = day, template = "order created", level = Level.INFO, count = 5)
 
-            repo.write(BatchHeader("orders-api", "pod-a", "1.0", 1), listOf(counter))
-            repo.write(BatchHeader("orders-api", "pod-b", "1.0", 1), listOf(counter))
+            repo(BatchHeader("orders-api", "pod-a", "1.0", 1), listOf(counter))
+            repo(BatchHeader("orders-api", "pod-b", "1.0", 1), listOf(counter))
 
             assertEquals(1, db.scalar("SELECT count(*) FROM template_count"))
             assertEquals(10, db.scalar("SELECT count FROM template_count"))
@@ -212,11 +213,11 @@ class IngestRepositoryTest {
     fun `counters keep releases apart`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val counter = TemplateCount(windowStart = day, template = "order created", level = Level.INFO, count = 3)
 
-            repo.write(BatchHeader("orders-api", "pod-a", "1.0.0", 1), listOf(counter))
-            repo.write(BatchHeader("orders-api", "pod-a", "1.0.1", 2), listOf(counter))
+            repo(BatchHeader("orders-api", "pod-a", "1.0.0", 1), listOf(counter))
+            repo(BatchHeader("orders-api", "pod-a", "1.0.1", 2), listOf(counter))
 
             // Without this dimension "did it get worse after the deploy" cannot be answered.
             assertEquals(2, db.scalar("SELECT count(*) FROM template_count"))
@@ -226,9 +227,9 @@ class IngestRepositoryTest {
     fun `a record with a marked field produces a reference bound to it`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(
+            repo(
                 header(),
                 listOf(record(fields = mapOf("orderId" to JsonPrimitive("12345")), indexed = listOf("orderId"))),
             )
@@ -244,9 +245,9 @@ class IngestRepositoryTest {
     fun `a standalone reference is stored without a body`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(
+            repo(
                 header(),
                 listOf(EntityRef(traceId = "4bf92f3577b34da6a3ce929d0e0e4736", key = "orderId", value = "12345", ts = day)),
             )
@@ -261,9 +262,9 @@ class IngestRepositoryTest {
     fun `a span is stored in the same transaction as its records`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(
+            repo(
                 header(),
                 listOf(
                     record(),
@@ -288,9 +289,9 @@ class IngestRepositoryTest {
     fun `an unterminated span keeps a null duration`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(
+            repo(
                 header(),
                 listOf(
                     Span("4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7", name = "POST /orders", kind = SpanKind.SERVER, ts = day),
@@ -304,10 +305,10 @@ class IngestRepositoryTest {
     fun `the exception class is interned`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val exception = ExceptionInfo("NoTransformationFoundException", "no transformation", "at ...")
 
-            repo.write(header(), (1L..10L).map { record(it, level = Level.ERROR, exception = exception) })
+            repo(header(), (1L..10L).map { record(it, level = Level.ERROR, exception = exception) })
 
             assertEquals(1, db.scalar("SELECT count(*) FROM exception_class"))
             assertEquals(
@@ -320,9 +321,9 @@ class IngestRepositoryTest {
     fun `records of different days land in different partitions`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(header(), listOf(record(), record(2).copy(ts = day + 86_400_000L)))
+            repo(header(), listOf(record(), record(2).copy(ts = day + 86_400_000L)))
 
             assertEquals(1, db.scalar("SELECT count(*) FROM log_entry_20260801"))
             assertEquals(1, db.scalar("SELECT count(*) FROM log_entry_20260802"))
@@ -333,9 +334,9 @@ class IngestRepositoryTest {
         runTest {
             val db = freshDb()
             // The server clock is ten seconds ahead of the source.
-            val repo = IngestRepository(db, clock = { day + 10_000 })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day + 10_000 }), clock = { day + 10_000 })
 
-            repo.write(header(), listOf(record(seq = 1)))
+            repo(header(), listOf(record(seq = 1)))
 
             val skew = db.scalar("SELECT clock_skew_ms FROM instance")
             assertTrue(skew != null && skew >= 9_000, "skew was $skew")
@@ -348,9 +349,9 @@ class IngestRepositoryTest {
     fun `the service and instance are created on first sight`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(header(), listOf(record()))
+            repo(header(), listOf(record()))
 
             assertEquals("orders-api", db.text("SELECT name FROM service"))
             assertEquals("orders-api-1", db.text("SELECT name FROM instance"))
@@ -360,9 +361,9 @@ class IngestRepositoryTest {
     fun `fields are stored as json`() =
         runTest {
             val db = freshDb()
-            val repo = IngestRepository(db, clock = { day })
+            val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
 
-            repo.write(header(), listOf(record(fields = mapOf("orderId" to JsonPrimitive("12345")))))
+            repo(header(), listOf(record(fields = mapOf("orderId" to JsonPrimitive("12345")))))
 
             assertEquals(
                 "12345",
