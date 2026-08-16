@@ -29,6 +29,21 @@ public object IngestHeaders {
      * `sent - oldestRecord` is how long the record waited, measured start to finish on one clock.
      */
     public const val SENT: String = "X-Tracy-Sent"
+
+    /**
+     * Identifies one run of the agent — generated at startup, constant until the process ends.
+     *
+     * The idempotency key used to be `(instance, seq)`, which is right for a retry from the same
+     * process and wrong for anything else: the instance name is chosen by the consumer, and
+     * nothing required it to be unique per launch. On our own platform three services out of four
+     * took the service's public domain from `HOSTNAME`, so every generation of the pod introduced
+     * itself as the same instance. A fresh pod restarts `seq` at zero, every batch looked like a
+     * redelivery of one already stored, and the server answered `202` — so the agent dropped
+     * records that were never written. Silent on both sides for hours after every deploy (M-111).
+     *
+     * With a run in the key the consumer no longer has to guess a requirement it cannot see.
+     */
+    public const val RUN: String = "X-Tracy-Run"
 }
 
 /**

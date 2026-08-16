@@ -35,6 +35,12 @@ public data class ServiceSummary(
      * as a clock problem instead.
      */
     public val maxRecordAgeMs: Long = 0,
+    /**
+     * Batches the server skipped because it had already stored that key. A few are ordinary —
+     * an agent retrying after a lost response. A number that climbs while `producedBytes` stands
+     * still is the shape of M-111, and it is here so that shape is visible at a glance.
+     */
+    public val duplicateBatches: Long = 0,
     /** References per entity key — the number that shows a key filling the database. */
     public val entityRefs: Map<String, Long> = emptyMap(),
 )
@@ -210,7 +216,8 @@ internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
 
         fetchAll(
             """SELECT v.id, v.name, v.last_seen, count(i.id), coalesce(max(i.clock_skew_ms), 0),
-                      coalesce(max(i.record_age_ms), 0)
+                      coalesce(max(i.record_age_ms), 0),
+                      coalesce(sum(i.duplicate_batches), 0)
                FROM service v LEFT JOIN instance i ON i.service_id = v.id
                GROUP BY v.id ORDER BY v.name""",
         ).getOrThrow().rows.map { row ->
@@ -256,6 +263,7 @@ internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
                 storedRecords = stored,
                 maxClockSkewMs = row.get(4).asLongOrNull() ?: 0,
                 maxRecordAgeMs = row.get(5).asLongOrNull() ?: 0,
+                duplicateBatches = row.get(6).asLongOrNull() ?: 0,
                 entityRefs = refs,
             )
         }

@@ -18,6 +18,12 @@ public class AgentConfig(
     public val apiKey: String,
     public val endpoint: String,
     public val instanceId: String,
+    /**
+     * One run of this process. The default is generated once and that is the point: the server's
+     * idempotency key needs something the consumer cannot accidentally make non-unique, and an
+     * instance name taken from `HOSTNAME` is exactly that kind of accident (M-111).
+     */
+    public val runId: String = randomRunId(),
     public val release: String? = null,
     public val level: Level = Level.INFO,
     public val sampleRate: Double = 0.01,
@@ -41,3 +47,10 @@ public class AgentConfig(
         }
     }
 }
+
+@OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+private fun randomRunId(): String =
+    kotlin.uuid.Uuid
+        .random()
+        .toHexString()
+        .take(16)

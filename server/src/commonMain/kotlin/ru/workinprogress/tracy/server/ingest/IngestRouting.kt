@@ -64,6 +64,7 @@ public fun Route.ingestRoutes() {
                 producedBytes = call.request.header(IngestHeaders.PRODUCED)?.toLongOrNull() ?: 0,
                 dropped = call.request.header(IngestHeaders.DROPPED)?.toLongOrNull() ?: 0,
                 sentAt = call.request.header(IngestHeaders.SENT)?.toLongOrNull(),
+                runId = call.request.header(IngestHeaders.RUN).orEmpty(),
             )
 
         val result =

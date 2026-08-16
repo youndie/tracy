@@ -29,6 +29,11 @@ public data class BatchHeader(
      * see [ru.workinprogress.tracy.server.ingest.IngestBatchUseCase].
      */
     val sentAt: Long? = null,
+    /**
+     * One run of the agent (`X-Tracy-Run`). Empty from an agent older than 0.2.2, which keeps the
+     * old `(instance, seq)` key — see [ru.workinprogress.tracy.server.ingest.IngestBatchUseCase].
+     */
+    val runId: String = "",
 )
 
 public data class WriteResult(
@@ -108,14 +113,16 @@ public class IngestRepository(
     internal suspend fun markBatch(
         executor: QueryExecutor,
         instanceId: Long,
+        run: String,
         seq: Long,
         now: Long,
     ) {
         executor.execute(
             Statement
-                .create("INSERT INTO ingest_batch (instance_id, seq, received_at) VALUES (:i, :s, :t)")
+                .create("INSERT INTO ingest_batch (instance_id, run, seq, received_at) VALUES (:i, :r, :s, :t)")
                 .apply {
                     bind("i", instanceId)
+                    bind("r", run)
                     bind("s", seq)
                     bind("t", now)
                 },
@@ -125,19 +132,37 @@ public class IngestRepository(
     internal suspend fun alreadyStored(
         executor: QueryExecutor,
         instanceId: Long,
+        run: String,
         seq: Long,
     ): Boolean =
         executor
             .fetchAll(
                 Statement
-                    .create("SELECT 1 FROM ingest_batch WHERE instance_id = :i AND seq = :s")
+                    .create("SELECT 1 FROM ingest_batch WHERE instance_id = :i AND run = :r AND seq = :s")
                     .apply {
                         bind("i", instanceId)
+                        bind("r", run)
                         bind("s", seq)
                     },
             ).getOrThrow()
             .rows
             .isNotEmpty()
+
+    /**
+     * Counted because the loss it marks was invisible. A batch skipped as a duplicate is normal
+     * when an agent retries and pathological when a whole pod generation collides — and from the
+     * outside those looked identical until this number existed.
+     */
+    internal suspend fun countDuplicate(
+        executor: QueryExecutor,
+        instanceId: Long,
+    ) {
+        executor.execute(
+            Statement
+                .create("UPDATE instance SET duplicate_batches = duplicate_batches + 1 WHERE id = :id")
+                .apply { bind("id", instanceId) },
+        )
+    }
 
     internal suspend fun writeRecord(
         executor: QueryExecutor,

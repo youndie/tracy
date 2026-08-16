@@ -115,7 +115,25 @@ internal val migrationV3: List<String> =
         """ALTER TABLE instance ADD COLUMN record_age_ms INTEGER NOT NULL DEFAULT 0;""",
     )
 
-internal val allMigrations: List<List<String>> = listOf(migrationV1, migrationV2, migrationV3)
+/**
+ * The idempotency key gains the agent's run, and the server starts counting what it drops.
+ *
+ * `run` is empty for an agent older than 0.2.2, which keeps the old key exactly — a redelivery
+ * from such an agent is still recognised. What it cannot do is tell one pod generation from the
+ * next, and that is the failure this migration exists for (M-111).
+ *
+ * `duplicate_batches` is the second half and arguably the more important one: the loss was silent
+ * for hours because nothing counted it. A number next to `producedBytes` names the cause on
+ * sight.
+ */
+internal val migrationV4: List<String> =
+    listOf(
+        """ALTER TABLE ingest_batch ADD COLUMN run TEXT NOT NULL DEFAULT '';""",
+        """CREATE UNIQUE INDEX ingest_batch_key ON ingest_batch (instance_id, run, seq);""",
+        """ALTER TABLE instance ADD COLUMN duplicate_batches INTEGER NOT NULL DEFAULT 0;""",
+    )
+
+internal val allMigrations: List<List<String>> = listOf(migrationV1, migrationV2, migrationV3, migrationV4)
 
 /**
  * Daily partitions. Only at this granularity do both retention and the size cap reduce to

@@ -65,9 +65,18 @@ public class IngestBatchUseCase(
             val serviceId = repository.serviceId(this, header.service, now)
             val instanceId = repository.instanceId(this, serviceId, header.instance, now, skew, recordAge)
 
-            // Idempotent per (instance, seq): an agent that never saw the 202 retries the same
-            // batch, and the protocol promises the retry is free rather than doubled.
-            if (repository.alreadyStored(this, instanceId, header.seq)) {
+            // Idempotent per (instance, run, seq): an agent that never saw the 202 retries the
+            // same batch, and the protocol promises the retry is free rather than doubled.
+            //
+            // The run is in the key because the instance name is not enough. It is chosen by the
+            // consumer, nothing makes it unique per launch, and on our own platform three
+            // services took the public domain from `HOSTNAME` — so every pod generation arrived
+            // as the same instance, restarted `seq` at zero and had every batch dropped as a
+            // redelivery while the agent was told `202` and let the records go (M-111).
+            if (repository.alreadyStored(this, instanceId, header.runId, header.seq)) {
+                // Counted, because this was silent for hours. A retry duplicate is ordinary; a
+                // whole generation of them is data loss, and only the number tells them apart.
+                repository.countDuplicate(this, instanceId)
                 return@transaction WriteResult(accepted = 0, duplicate = true)
             }
 
@@ -85,7 +94,7 @@ public class IngestBatchUseCase(
             if (header.producedBytes > 0 || header.dropped > 0) {
                 repository.recordProduced(this, serviceId, now, header.producedBytes, header.dropped)
             }
-            repository.markBatch(this, instanceId, header.seq, now)
+            repository.markBatch(this, instanceId, header.runId, header.seq, now)
 
             WriteResult(accepted, duplicate = false)
         }

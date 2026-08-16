@@ -81,6 +81,7 @@ public class Sender(
                     header(IngestHeaders.INSTANCE, config.instanceId)
                     config.release?.let { header(IngestHeaders.RELEASE, it) }
                     header(IngestHeaders.SEQ, seq.toString())
+                    header(IngestHeaders.RUN, config.runId)
                     // Read here rather than when the batch was built: a retry sends the same
                     // records later, and the point of this header is to separate that delay from
                     // the difference between clocks (M-110).
