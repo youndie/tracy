@@ -2,7 +2,7 @@
 # Pinned to amd64 on purpose: the image is built on whatever runner is free, and a native
 # binary linked for the builder's architecture would fail at exec time with nothing but
 # "no such file or directory" to explain it.
-FROM --platform=linux/amd64 gradle:9.7.0-jdk25-noble AS build
+FROM --platform=linux/amd64 gradle:9.7.1-jdk25-noble AS build
 
 WORKDIR /app
 COPY . .
