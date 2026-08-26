@@ -36,6 +36,12 @@ kotlin {
     linuxX64()
     linuxArm64()
 
+    // Apple mobile. The agent is a library that ends up inside somebody else's client, and an
+    // iOS build had nowhere to send a record at all (issue #16).
+    iosArm64()
+    iosSimulatorArm64()
+    iosX64()
+
     sourceSets {
         commonMain.dependencies {
             api(libs.kotlinx.serialization.json)
