@@ -21,7 +21,13 @@ class NdJsonTest {
             durationMs = 4,
         )
 
-    private fun counter() = TemplateCount(windowStart = 1754049600000, template = "user logged in", level = Level.INFO, count = 17)
+    private fun counter() =
+        TemplateCount(
+            windowStart = 1754049600000,
+            template = "user logged in",
+            level = Level.INFO,
+            count = 17,
+        )
 
     @Test
     fun `mixed lines survive a round trip in one stream`() {

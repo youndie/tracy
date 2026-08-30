@@ -73,7 +73,8 @@ class TracyDeliveryTest {
         }
     }
 
-    private fun agentFor(config: AgentConfig): TracyAgent = TracyAgent(config, clock = { 1785542400000L }, random = { 0.0 })
+    private fun agentFor(config: AgentConfig): TracyAgent =
+        TracyAgent(config, clock = { 1785542400000L }, random = { 0.0 })
 
     @Test
     fun `nothing buffered means nothing sent`() =

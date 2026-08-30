@@ -53,7 +53,9 @@ class CapturedIsUntrustedTest {
         agent.accept(
             level = Level.INFO,
             logger = "org.mongodb.driver.cluster",
-            message = "Monitor thread connected to ServerDescription{address=db-0.internal:27017, roundTripTimeNanos=178281013}",
+            message =
+                "Monitor thread connected to ServerDescription{address=db-0.internal:27017, " +
+                    "roundTripTimeNanos=178281013}",
             cause = null,
             builder = LogBuilder(),
             trace = null,

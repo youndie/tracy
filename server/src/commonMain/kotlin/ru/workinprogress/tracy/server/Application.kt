@@ -83,7 +83,14 @@ public fun Application.module(
     val self = if (config.selfService != null) get<SelfObservation>() else null
 
     if (self != null) {
-        launch { self.log(Level.INFO, "Boot", "tracy started", mapOf("retentionDays" to config.retentionDays.toString())) }
+        launch {
+            self.log(
+                Level.INFO,
+                "Boot",
+                "tracy started",
+                mapOf("retentionDays" to config.retentionDays.toString()),
+            )
+        }
     }
 
     // Retention has to be *run*, not merely configured. Until M7 `enforce()` had no caller: the

@@ -1,11 +1,19 @@
 plugins {
-    kotlin("multiplatform")
-    alias(libs.plugins.pluginSerialization)
+    id("org.jetbrains.kotlin.multiplatform")
+    id("org.jetbrains.kotlin.plugin.serialization")
+    id("ru.workinprogress.sborka.kmp")
+    id("ru.workinprogress.sborka.lint")
+}
+
+// NOT PUBLISHED: the server ships as a container image, not as an artefact, so no `sborka.publish`
+// here. Explicit API is off for the same reason — nothing resolves this module as a library, so
+// there is no consumer for a spelled-out surface to be spelled out for.
+kotlin {
+    explicitApi = null
 }
 
 kotlin {
     jvm()
-    jvmToolchain(25)
 
     listOf(
         macosArm64(),

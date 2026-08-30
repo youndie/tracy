@@ -136,7 +136,8 @@ public class ToolFacade(
         since: Long,
         until: Long,
         limit: Int = 50,
-    ): ru.workinprogress.tracy.server.trace.SpanSearchResult = spans.search(service, name, minDurationMs, onlyErrors, since, until, limit)
+    ): ru.workinprogress.tracy.server.trace.SpanSearchResult =
+        spans.search(service, name, minDurationMs, onlyErrors, since, until, limit)
 
     public suspend fun getEntity(
         key: String,

@@ -65,7 +65,8 @@ public class IngestRepository(
      * own transaction — would trade an invariant for a layer diagram. The batch marker has to land
      * with the records it marks, or a retry after a partial failure writes them twice.
      */
-    public suspend fun <T> transaction(block: suspend TransactionContext.() -> T): T = TransactionContext.withCurrent(db, block)
+    public suspend fun <T> transaction(block: suspend TransactionContext.() -> T): T =
+        TransactionContext.withCurrent(db, block)
 
     internal suspend fun serviceId(
         executor: QueryExecutor,

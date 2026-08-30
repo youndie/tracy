@@ -16,4 +16,5 @@ import io.ktor.client.engine.darwin.Darwin
  * libcurl and libssl and resolves host names itself, both verified rather than assumed
  * (research 1.5), and changing the desktop engine would reopen questions that are already closed.
  */
-internal actual fun tracyHttpClient(configure: HttpClientConfig<*>.() -> Unit): HttpClient = HttpClient(Darwin, configure)
+internal actual fun tracyHttpClient(configure: HttpClientConfig<*>.() -> Unit): HttpClient =
+    HttpClient(Darwin, configure)

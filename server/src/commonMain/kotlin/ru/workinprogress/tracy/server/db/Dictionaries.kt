@@ -90,8 +90,9 @@ public class Dictionaries {
         }
         executor.execute(
             Statement
-                .create("UPDATE instance SET last_seen = :now, clock_skew_ms = :skew, record_age_ms = :age WHERE id = :id")
-                .apply {
+                .create(
+                    "UPDATE instance SET last_seen = :now, clock_skew_ms = :skew, record_age_ms = :age WHERE id = :id",
+                ).apply {
                     bind("now", now)
                     bind("skew", clockSkewMs)
                     bind("age", recordAgeMs)

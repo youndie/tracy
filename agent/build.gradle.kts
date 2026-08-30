@@ -1,33 +1,21 @@
 plugins {
-    kotlin("multiplatform")
-    `maven-publish`
+    id("org.jetbrains.kotlin.multiplatform")
+    id("ru.workinprogress.sborka.kmp")
+    id("ru.workinprogress.sborka.lint")
+    id("ru.workinprogress.sborka.publish")
 }
 
-publishing {
-    repositories {
-        // Address, user and secret all come from outside the repository. The URL is not a
-        // credential, but it is infrastructure, and a public build file is a poor place to
-        // publish the location of a private Maven repository.
-        val repositoryUrl = providers.gradleProperty("REPOSILITE_URL").orElse(providers.environmentVariable("REPOSILITE_URL"))
-        if (repositoryUrl.isPresent) {
-            maven {
-                name = "wip"
-                url = uri(repositoryUrl.get())
-                credentials {
-                    username = providers.gradleProperty("REPOSILITE_USER").orElse(providers.environmentVariable("REPOSILITE_USER")).orNull
-                    password =
-                        providers.gradleProperty("REPOSILITE_SECRET").orElse(providers.environmentVariable("REPOSILITE_SECRET")).orNull
-                }
-            }
-        }
-    }
-}
+// The repository this publishes to is no longer named here. It used to be read from `REPOSILITE_URL`
+// with the note that "a public build file is a poor place to publish the location of a private Maven
+// repository" — and the address is now in the public source of `ru.workinprogress.sborka`, together
+// with the six repositories that have already migrated, so keeping it out of THIS file conceals
+// nothing that is still concealed. `sborka.publish` declares it, and `sborka.snapshotRepository`
+// overrides it if that ever needs to change.
 
 kotlin {
     withSourcesJar()
 
     jvm()
-    jvmToolchain(25)
 
     macosArm64()
     linuxX64()

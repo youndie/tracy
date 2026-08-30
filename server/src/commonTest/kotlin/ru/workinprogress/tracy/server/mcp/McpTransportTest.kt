@@ -36,7 +36,15 @@ class McpTransportTest {
     private val day = 1785542400000L
 
     private val toolNames =
-        listOf("list_services", "search_logs", "get_trace", "get_entity", "search_spans", "top_templates", "get_entry_content")
+        listOf(
+            "list_services",
+            "search_logs",
+            "get_trace",
+            "get_entity",
+            "search_spans",
+            "top_templates",
+            "get_entry_content",
+        )
 
     private suspend fun withServer(
         token: String? = "tr_mcp_secret",

@@ -113,7 +113,11 @@ class SelfObservationTest {
             // A repository pointed at a database that was never migrated: every write throws.
             val broken =
                 SelfObservation(
-                    acceptBatch = IngestBatchUseCase(IngestRepository(openBrokenDatabase(), clock = { day }), clock = { day }),
+                    acceptBatch =
+                        IngestBatchUseCase(
+                            IngestRepository(openBrokenDatabase(), clock = { day }),
+                            clock = { day },
+                        ),
                     service = "tracy-server",
                     instanceId = "pod-a",
                     release = null,

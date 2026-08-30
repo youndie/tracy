@@ -107,7 +107,16 @@ public fun Route.queryRoutes() {
     get<EntitiesResource.Value> { params ->
         val window = call.window(params.since, params.until) ?: return@get
 
-        when (val result = entityLookup.timeline(params.parent.key, params.value, window.first, window.second, params.limit)) {
+        when (
+            val result =
+                entityLookup.timeline(
+                    params.parent.key,
+                    params.value,
+                    window.first,
+                    window.second,
+                    params.limit,
+                )
+        ) {
             is EntityLookup.Found -> call.json(TracyJson.encodeToString(result.value))
             is EntityLookup.KeyNotIndexed -> call.unknownKey(result)
         }

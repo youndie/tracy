@@ -70,7 +70,10 @@ public fun Application.installMcp(
         // the docs site gets wrong and the klib does not (research 1.8).
         Server(
             serverInfo = Implementation(name = "tracy", version = "0.1"),
-            options = ServerOptions(capabilities = ServerCapabilities(tools = ServerCapabilities.Tools(listChanged = null))),
+            options =
+                ServerOptions(
+                    capabilities = ServerCapabilities(tools = ServerCapabilities.Tools(listChanged = null)),
+                ),
         ).apply { registerTools(facade) }
     }
 }
