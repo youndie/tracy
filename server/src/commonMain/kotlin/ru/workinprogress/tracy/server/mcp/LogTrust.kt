@@ -75,5 +75,6 @@ public object LogTrust {
      * Screens a field map. Keys are identifiers written by the developer and are left alone;
      * values came from outside.
      */
-    public fun screenValues(fields: Map<String, String>): Map<String, ScreenResult> = fields.mapValues { (_, value) -> screen(value) }
+    public fun screenValues(fields: Map<String, String>): Map<String, ScreenResult> =
+        fields.mapValues { (_, value) -> screen(value) }
 }

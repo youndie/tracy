@@ -76,7 +76,14 @@ class TraceEndToEndTest {
         lines: List<BatchLine>,
     ) = this(BatchHeader(service, "$service-pod", "1.0.0", seq), lines)
 
-    private fun TraceNode.find(name: String): TraceNode? = if (this.name == name) this else children.firstNotNullOfOrNull { it.find(name) }
+    private fun TraceNode.find(name: String): TraceNode? =
+        if (this.name ==
+            name
+        ) {
+            this
+        } else {
+            children.firstNotNullOfOrNull { it.find(name) }
+        }
 
     @Test
     fun `three services become one tree`() =
@@ -91,7 +98,14 @@ class TraceEndToEndTest {
                 1,
                 listOf(
                     span("bbbbbbbbbbbbbbbb", "cccccccccccccccc", "POST /charge", SpanKind.SERVER, day + 12, 348),
-                    span("dddddddddddddddd", "bbbbbbbbbbbbbbbb", "GET https://provider/pay", SpanKind.CLIENT, day + 14, 300),
+                    span(
+                        "dddddddddddddddd",
+                        "bbbbbbbbbbbbbbbb",
+                        "GET https://provider/pay",
+                        SpanKind.CLIENT,
+                        day + 14,
+                        300,
+                    ),
                     record(2, "bbbbbbbbbbbbbbbb", "charging card"),
                 ),
             )
@@ -100,7 +114,14 @@ class TraceEndToEndTest {
                 1,
                 listOf(
                     span("aaaaaaaaaaaaaaaa", null, "POST /orders", SpanKind.SERVER, day, 412),
-                    span("cccccccccccccccc", "aaaaaaaaaaaaaaaa", "GET https://billing/charge", SpanKind.CLIENT, day + 10, 350),
+                    span(
+                        "cccccccccccccccc",
+                        "aaaaaaaaaaaaaaaa",
+                        "GET https://billing/charge",
+                        SpanKind.CLIENT,
+                        day + 10,
+                        350,
+                    ),
                     record(1, "aaaaaaaaaaaaaaaa", "order accepted"),
                     record(3, "aaaaaaaaaaaaaaaa", "payment provider rejected", Level.ERROR),
                 ),
@@ -135,7 +156,14 @@ class TraceEndToEndTest {
                 1,
                 listOf(
                     span("bbbbbbbbbbbbbbbb", null, "POST /charge", SpanKind.SERVER, day, 348),
-                    span("dddddddddddddddd", "bbbbbbbbbbbbbbbb", "GET https://provider/pay", SpanKind.CLIENT, day + 2, 300),
+                    span(
+                        "dddddddddddddddd",
+                        "bbbbbbbbbbbbbbbb",
+                        "GET https://provider/pay",
+                        SpanKind.CLIENT,
+                        day + 2,
+                        300,
+                    ),
                 ),
             )
 
@@ -163,7 +191,14 @@ class TraceEndToEndTest {
                 1,
                 listOf(
                     span("aaaaaaaaaaaaaaaa", null, "POST /orders", SpanKind.SERVER, day, 412),
-                    span("cccccccccccccccc", "aaaaaaaaaaaaaaaa", "GET https://billing/charge", SpanKind.CLIENT, day + 10, 350),
+                    span(
+                        "cccccccccccccccc",
+                        "aaaaaaaaaaaaaaaa",
+                        "GET https://billing/charge",
+                        SpanKind.CLIENT,
+                        day + 10,
+                        350,
+                    ),
                 ),
             )
 
@@ -226,11 +261,26 @@ class TraceEndToEndTest {
             val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             val nextDay = day + 86_400_000L
 
-            repo.send("orders-api", 1, listOf(span("aaaaaaaaaaaaaaaa", null, "POST /orders", SpanKind.SERVER, day + 86_399_000, 3000)))
+            repo.send(
+                "orders-api",
+                1,
+                listOf(
+                    span(
+                        "aaaaaaaaaaaaaaaa",
+                        null,
+                        "POST /orders",
+                        SpanKind.SERVER,
+                        day + 86_399_000,
+                        3000,
+                    ),
+                ),
+            )
             repo.send(
                 "billing",
                 1,
-                listOf(span("bbbbbbbbbbbbbbbb", "aaaaaaaaaaaaaaaa", "POST /charge", SpanKind.SERVER, nextDay + 500, 200)),
+                listOf(
+                    span("bbbbbbbbbbbbbbbb", "aaaaaaaaaaaaaaaa", "POST /charge", SpanKind.SERVER, nextDay + 500, 200),
+                ),
             )
 
             // Daily slicing is what makes retention a DROP TABLE; a trace that crosses midnight

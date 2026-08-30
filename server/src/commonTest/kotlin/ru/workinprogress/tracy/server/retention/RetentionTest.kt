@@ -39,7 +39,13 @@ class RetentionTest {
         IngestBatchUseCase(IngestRepository(db, clock = { ts }), clock = { ts })(
             BatchHeader("orders-api", "pod-a", "1.0", seq),
             (1..count).map {
-                LogRecord(ts = ts + it, seq = seq * 1000 + it, level = Level.INFO, logger = "L", message = "order created")
+                LogRecord(
+                    ts = ts + it,
+                    seq = seq * 1000 + it,
+                    level = Level.INFO,
+                    logger = "L",
+                    message = "order created",
+                )
             },
         )
     }
@@ -89,8 +95,13 @@ class RetentionTest {
             val before = Retention(db, 30, 90, Long.MAX_VALUE, clock = { day }).state()
 
             val state =
-                Retention(db, retentionDays = 30, countsRetentionDays = 90, maxBytes = before.databaseBytes / 2, clock = { day })
-                    .enforce()
+                Retention(
+                    db,
+                    retentionDays = 30,
+                    countsRetentionDays = 90,
+                    maxBytes = before.databaseBytes / 2,
+                    clock = { day },
+                ).enforce()
 
             // A collector that filled the node's disk is an outage it caused itself: the oldest
             // day goes rather than the newest write being refused.
@@ -104,7 +115,14 @@ class RetentionTest {
             val db = freshDb()
             writeDay(db, 0, 1, count = 100)
 
-            val state = Retention(db, retentionDays = 30, countsRetentionDays = 90, maxBytes = 1, clock = { day }).enforce()
+            val state =
+                Retention(
+                    db,
+                    retentionDays = 30,
+                    countsRetentionDays = 90,
+                    maxBytes = 1,
+                    clock = { day },
+                ).enforce()
 
             // Dropping everything would leave a collector that collects nothing; the cap is a
             // budget, not a reason to become useless.

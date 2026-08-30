@@ -85,7 +85,13 @@ class TextSearchTest {
 
             // Each of these is a parse error or an operator if passed through raw. Bound as a
             // phrase they are ordinary characters, so the worst case is an empty result.
-            for (hostile in listOf("payment OR order", "payment*", "\"payment", "payment NEAR/2 gateway", "(payment)")) {
+            for (hostile in listOf(
+                "payment OR order",
+                "payment*",
+                "\"payment",
+                "payment NEAR/2 gateway",
+                "(payment)",
+            )) {
                 val result = repository.searchLogs(since = 0, until = Long.MAX_VALUE, query = hostile)
 
                 assertEquals(0, result.items.size, "`$hostile` should match nothing, not throw and not match all")

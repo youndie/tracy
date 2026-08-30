@@ -72,7 +72,9 @@ class EntityRepositoryTest {
             val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             repo(
                 BatchHeader("orders-api", "pod-a", null, 1),
-                listOf(EntityRef(traceId = "4bf92f3577b34da6a3ce929d0e0e4736", key = "orderId", value = "12345", ts = day)),
+                listOf(
+                    EntityRef(traceId = "4bf92f3577b34da6a3ce929d0e0e4736", key = "orderId", value = "12345", ts = day),
+                ),
             )
 
             val touch =
@@ -139,7 +141,20 @@ class EntityRepositoryTest {
             val repo = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })
             repo(
                 BatchHeader("orders-api", "pod-a", null, 1),
-                (1L..10L).map { EntityRef("4bf92f3577b34da6a3ce929d0e0e4736", "ip", if (it <= 7) "10.0.0.1" else "10.0.0.2", day + it) },
+                (1L..10L).map {
+                    EntityRef(
+                        "4bf92f3577b34da6a3ce929d0e0e4736",
+                        "ip",
+                        if (it <=
+                            7
+                        ) {
+                            "10.0.0.1"
+                        } else {
+                            "10.0.0.2"
+                        },
+                        day + it,
+                    )
+                },
             )
 
             val top = EntityRepository(db).top("ip", since = day - 1000, until = day + 1000)

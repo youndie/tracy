@@ -249,7 +249,14 @@ class IngestRepositoryTest {
 
             repo(
                 header(),
-                listOf(EntityRef(traceId = "4bf92f3577b34da6a3ce929d0e0e4736", key = "orderId", value = "12345", ts = day)),
+                listOf(
+                    EntityRef(
+                        traceId = "4bf92f3577b34da6a3ce929d0e0e4736",
+                        key = "orderId",
+                        value = "12345",
+                        ts = day,
+                    ),
+                ),
             )
 
             // The normal case for a successful request, not a degenerate one (research D12).
@@ -294,7 +301,13 @@ class IngestRepositoryTest {
             repo(
                 header(),
                 listOf(
-                    Span("4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7", name = "POST /orders", kind = SpanKind.SERVER, ts = day),
+                    Span(
+                        "4bf92f3577b34da6a3ce929d0e0e4736",
+                        "00f067aa0ba902b7",
+                        name = "POST /orders",
+                        kind = SpanKind.SERVER,
+                        ts = day,
+                    ),
                 ),
             )
 

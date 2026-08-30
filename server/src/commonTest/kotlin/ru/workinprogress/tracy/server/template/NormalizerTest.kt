@@ -16,7 +16,10 @@ class NormalizerTest {
 
     @Test
     fun `identifiers and addresses collapse`() {
-        assertEquals("user <uuid> logged in", Normalizer.normalize("user 4bf92f35-77b3-4da6-a3ce-929d0e0e4736 logged in"))
+        assertEquals(
+            "user <uuid> logged in",
+            Normalizer.normalize("user 4bf92f35-77b3-4da6-a3ce-929d0e0e4736 logged in"),
+        )
         assertEquals("mail to <email>", Normalizer.normalize("mail to person@example.com"))
         assertEquals("from <ip>", Normalizer.normalize("from 203.0.113.7"))
     }

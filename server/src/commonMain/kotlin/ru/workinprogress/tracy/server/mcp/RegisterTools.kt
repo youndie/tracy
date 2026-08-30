@@ -298,7 +298,10 @@ internal fun Server.registerTools(facade: ToolFacade) {
                         }
                         putJsonObject("checked") {
                             put("type", "array")
-                            put("description", "ids from `entryIds` you examined; a report about entries never shown establishes nothing")
+                            put(
+                                "description",
+                                "ids from `entryIds` you examined; a report about entries never shown establishes nothing",
+                            )
                             putJsonObject("items") { put("type", "integer") }
                         }
                     },

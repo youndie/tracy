@@ -19,36 +19,33 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v7
 
-      - name: Setup Java
-        uses: actions/setup-java@v5
+      # Java, Gradle and the Kotlin/Native cache in one step. That cache is not an optimisation to
+      # taste: LLVM and the sysroots weigh hundreds of megabytes, and without it every run spends
+      # minutes downloading them again.
+      - uses: youndie/sborka/.github/actions/setup-kotlin@main
         with:
-          distribution: 'temurin'
-          java-version: 25
-          cache: 'gradle'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      # Kotlin/Native cache: LLVM and the sysroots weigh hundreds of megabytes and are downloaded
-      # once. Without it every run spends minutes on that alone.
-      - uses: actions/cache@v6
-        with:
-          path: ~/.konan
-          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
-          restore-keys: konan-${{ runner.os }}-
+          konan-cache: "true"
 
       # Tests first. An artifact that failed its own tests is worse than no artifact: it is
       # available and wrong.
       - name: Check
         run: ./gradlew :shared:check :agent:check --stacktrace
 
-      # REPOSILITE_URL is a repository address rather than a credential, but a public build file
-      # is a poor place to publish the location of a private Maven repository — so it arrives from
-      # outside too. With it unset the publishing block registers no repository at all.
+      # `0.1.<run number>`, which is what `libVersion()` used to compose out of BUILD_NUMBER. The
+      # number is the same; it reaches the build as the version itself rather than as a part for the
+      # build to assemble, because `sborka.base` sets the PROJECT version from it — and a version set
+      # on the publication alone ships archives named after something else.
+      - name: Determine version
+        id: ver
+        run: echo "version=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      # REPOSILITE_URL is gone: `sborka.publish` declares the repository. The address is in the
+      # public source of the conventions and in the seven repositories that have migrated, so keeping
+      # it in a secret concealed nothing that was still concealed — and with the secret unset, as it
+      # was, the publishing block registered no repository at all and the publish did nothing.
       - name: Publish
         run: ./gradlew :shared:publishAllPublicationsToWipRepository :agent:publishAllPublicationsToWipRepository --no-daemon
         env:
-          ORG_GRADLE_PROJECT_BUILD_NUMBER: ${{ github.run_number }}
-          ORG_GRADLE_PROJECT_REPOSILITE_URL: ${{ secrets.REPOSILITE_URL }}
+          ORG_GRADLE_PROJECT_VERSION: ${{ steps.ver.outputs.version }}
           ORG_GRADLE_PROJECT_REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
           ORG_GRADLE_PROJECT_REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}

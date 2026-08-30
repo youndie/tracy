@@ -36,7 +36,8 @@ import kotlin.test.assertTrue
 class IngestRoutingTest {
     private val day = 1785542400000L
 
-    private fun record(seq: Long) = LogRecord(ts = day, seq = seq, level = Level.INFO, logger = "L", message = "order created")
+    private fun record(seq: Long) =
+        LogRecord(ts = day, seq = seq, level = Level.INFO, logger = "L", message = "order created")
 
     private suspend fun ISQLite.scalar(sql: String): Long? =
         fetchAll(sql)

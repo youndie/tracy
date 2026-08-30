@@ -86,7 +86,15 @@ class CurlThreadCensusTest {
         }
     }
 
-    private fun sender(port: Int) = Sender(AgentConfig(service = "s", apiKey = "k", endpoint = "http://127.0.0.1:$port", instanceId = "i"))
+    private fun sender(port: Int) =
+        Sender(
+            AgentConfig(
+                service = "s",
+                apiKey = "k",
+                endpoint = "http://127.0.0.1:$port",
+                instanceId = "i",
+            ),
+        )
 
     @Test
     fun `the census can see threads at all`() {

@@ -50,7 +50,12 @@ class QueryRepositoryTest {
             BatchHeader("orders-api", "pod-a", "1.0.0", 1),
             listOf(
                 record(1),
-                record(2, "payment provider rejected", Level.ERROR, exception = ExceptionInfo("NoTransformationFoundException")),
+                record(
+                    2,
+                    "payment provider rejected",
+                    Level.ERROR,
+                    exception = ExceptionInfo("NoTransformationFoundException"),
+                ),
                 record(3, "order 8123 not found", untrusted = 1),
                 record(4, fields = mapOf("orderId" to JsonPrimitive("12345")), indexed = listOf("orderId")),
             ),
@@ -88,9 +93,18 @@ class QueryRepositoryTest {
             seed(db)
             val repository = QueryRepository(db)
 
-            assertEquals(1, repository.searchLogs(service = "billing", since = window.first, until = window.second).items.size)
-            assertEquals(1, repository.searchLogs(level = Level.ERROR, since = window.first, until = window.second).items.size)
-            assertEquals(4, repository.searchLogs(instance = "pod-a", since = window.first, until = window.second).items.size)
+            assertEquals(
+                1,
+                repository.searchLogs(service = "billing", since = window.first, until = window.second).items.size,
+            )
+            assertEquals(
+                1,
+                repository.searchLogs(level = Level.ERROR, since = window.first, until = window.second).items.size,
+            )
+            assertEquals(
+                4,
+                repository.searchLogs(instance = "pod-a", since = window.first, until = window.second).items.size,
+            )
         }
 
     @Test
@@ -221,7 +235,12 @@ class QueryRepositoryTest {
                 BatchHeader("orders-api", "pod-a", "1.0.0", 1),
                 listOf(
                     TemplateCount(windowStart = day, template = "order created", level = Level.INFO, count = 10),
-                    TemplateCount(windowStart = day + 60_000, template = "order created", level = Level.INFO, count = 30),
+                    TemplateCount(
+                        windowStart = day + 60_000,
+                        template = "order created",
+                        level = Level.INFO,
+                        count = 30,
+                    ),
                 ),
             )
 
