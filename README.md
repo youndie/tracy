@@ -4,7 +4,7 @@
 [![kotlin](https://img.shields.io/badge/Kotlin-2.4.10-blue?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![native](https://img.shields.io/badge/Native-blue?logoColor=white)](https://kotlinlang.org)
 [![jvm](https://img.shields.io/badge/JVM-orange?logoColor=white)](https://kotlinlang.org)
-[![tracy agent](https://reposilite.kotlin.website/api/badge/latest/snapshots/ru/workinprogress/tracy/agent?name=agent&color=40c14a&prefix=v)](https://reposilite.kotlin.website/#/snapshots/ru/workinprogress/tracy/agent)
+[![tracy agent](https://reposilite.kotlin.website/api/badge/latest/snapshots/io/github/youndie/tracy/agent?name=agent&color=40c14a&prefix=v)](https://reposilite.kotlin.website/#/snapshots/io/github/youndie/tracy/agent)
 [![Docker Image Version](https://img.shields.io/badge/server-latest-blue?logo=docker)](https://github.com/youndie/tracy/pkgs/container/tracy)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
