@@ -10,7 +10,7 @@ owner: unassigned
 depends_on:
   - tracy-server
 publishes:
-  - "ru.workinprogress:tracy-agent (Maven)"
+  - "io.github.youndie.tracy:agent (Maven)"
 ---
 
 # tracy-agent

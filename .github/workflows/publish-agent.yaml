@@ -31,13 +31,15 @@ jobs:
       - name: Check
         run: ./gradlew :shared:check :agent:check --stacktrace
 
-      # `0.1.<run number>`, which is what `libVersion()` used to compose out of BUILD_NUMBER. The
-      # number is the same; it reaches the build as the version itself rather than as a part for the
-      # build to assemble, because `sborka.base` sets the PROJECT version from it — and a version set
-      # on the publication alone ships archives named after something else.
+      # `0.2.<run number>`. It reaches the build as the version itself rather than as a part for
+      # the build to assemble, because `sborka.base` sets the PROJECT version from it — and a version
+      # set on the publication alone ships archives named after something else.
+      #
+      # The head is also in `gradle.properties`, as the fallback a build with no -PVERSION gets.
+      # The two are one number said twice, so they move together.
       - name: Determine version
         id: ver
-        run: echo "version=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        run: echo "version=0.2.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       # REPOSILITE_URL is gone: `sborka.publish` declares the repository. The address is in the
       # public source of the conventions and in the seven repositories that have migrated, so keeping
