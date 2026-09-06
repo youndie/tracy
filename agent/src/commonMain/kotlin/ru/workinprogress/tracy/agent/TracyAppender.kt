@@ -21,6 +21,10 @@ public class TracyAppender(
     private val sink: RecordSink,
     private val delegate: Appender,
 ) : Appender {
+    @Suppress(
+        "ktlint:kapkan:swallowed-failure",
+        "both swallows are the appender's contract: neither the host's line nor its call may be lost",
+    )
     override fun log(loggingEvent: KLoggingEvent) {
         // The host's own output first: whatever happens next must not cost it a line.
         runCatching { delegate.log(loggingEvent) }

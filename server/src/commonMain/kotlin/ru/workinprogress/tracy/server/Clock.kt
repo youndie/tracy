@@ -11,4 +11,8 @@ import kotlin.time.ExperimentalTime
  * compiler rejects in a shared signature. The stdlib clock is common and does the same job.
  */
 @OptIn(ExperimentalTime::class)
+@Suppress(
+    "ktlint:kapkan:wall-clock",
+    "the server's clock port: everything else is handed a () -> Long that ends up here",
+)
 public fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()

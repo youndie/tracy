@@ -83,6 +83,18 @@ Gradle-плагин. Версии CLI и плагина обязаны совп�
 ~/.local/bin/ktlint -F "**/*.kt" "**/*.kts"
 ```
 
+Начиная с sborka 0.2 `sborka.lint` кладёт на `ktlintRuleset` набор правил **kapkan**, и CLI его не
+видит: `wall-clock` и `swallowed-failure` находятся только `./gradlew ktlintCheck`. Оба правила
+срабатывают и на верном коде — порт часов и намеренно проглоченная неудача, — и выключаются одной
+формой, где вторая строка обязательна и читается людьми:
+
+```kotlin
+@Suppress(
+    "ktlint:kapkan:wall-clock",
+    "the agent's clock port: the SENT header has to carry the sending machine's own time",
+)
+```
+
 ## Язык
 
 Код — **английский**: комментарии, KDoc, имена тестов, сообщения исключений, `description` задач

@@ -18,6 +18,10 @@ import ru.workinprogress.tracy.wire.Level
 public class TracyLogbackAppender(
     private val sink: RecordSink,
 ) : AppenderBase<ILoggingEvent>() {
+    @Suppress(
+        "ktlint:kapkan:swallowed-failure",
+        "an appender that threw would cost the host the log line logback is already writing",
+    )
     override fun append(event: ILoggingEvent) {
         val level = event.level.toTracy() ?: return
         if (!sink.isEnabled(level)) return

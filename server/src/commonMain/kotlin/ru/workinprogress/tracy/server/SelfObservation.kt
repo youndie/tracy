@@ -37,6 +37,10 @@ public class SelfObservation(
      * ends up in the template table, which outlives record bodies and is handed to agents as
      * trusted text (research 1.10). Being the server is not an exemption.
      */
+    @Suppress(
+        "ktlint:kapkan:swallowed-failure",
+        "a server that cannot write its own log line still has to accept everyone else's",
+    )
     public suspend fun log(
         level: Level,
         logger: String,
