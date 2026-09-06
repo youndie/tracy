@@ -49,6 +49,13 @@ public sealed interface SendResult {
  */
 public class Sender(
     private val config: AgentConfig,
+    // The agent's clock port. The SENT header exists to be subtracted from the server's own
+    // reading, so this one value has to come from the machine the batch is leaving (M-110);
+    // everything else in the agent is handed a `() -> Long` and never asks.
+    @Suppress(
+        "ktlint:kapkan:wall-clock",
+        "the agent's clock port: the SENT header has to carry the sending machine's own time",
+    )
     private val clock: () -> Long = {
         kotlin.time.Clock.System
             .now()
@@ -116,6 +123,10 @@ public class Sender(
         }
     }
 
+    @Suppress(
+        "ktlint:kapkan:swallowed-failure",
+        "closing the last socket can only fail on the way out, when no sink is left to report to",
+    )
     public fun close() {
         runCatching { client.close() }
     }

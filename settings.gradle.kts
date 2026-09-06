@@ -19,7 +19,7 @@ plugins {
     // The repositories with their content filters, the shared `wip` catalog, and the check that this
     // repository's `.editorconfig` is the one the rest of them use — this one had no `.editorconfig`
     // at all, so ktlint was reading its own defaults.
-    id("ru.workinprogress.sborka.settings") version "0.1.0.13"
+    id("ru.workinprogress.sborka.settings") version "0.2.0.30"
 }
 
 dependencyResolutionManagement {

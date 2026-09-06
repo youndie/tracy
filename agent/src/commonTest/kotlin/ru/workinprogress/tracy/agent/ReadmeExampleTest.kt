@@ -15,6 +15,10 @@ import kotlin.test.assertEquals
  * public API breaks the build here, next to the docs it invalidates.
  */
 class ReadmeExampleTest {
+    @Suppress(
+        "ktlint:kapkan:wall-clock",
+        "this is the README's own composition root, where the consumer binds the agent's clock",
+    )
     private fun Application.quickStart(
         ingestKey: String,
         podName: String,
