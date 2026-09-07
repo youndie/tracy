@@ -1,16 +1,16 @@
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("org.jetbrains.kotlin.plugin.serialization")
-    id("ru.workinprogress.sborka.kmp")
-    id("ru.workinprogress.sborka.lint")
-    id("ru.workinprogress.sborka.publish")
+    id("io.github.youndie.sborka.kmp")
+    id("io.github.youndie.sborka.lint")
+    id("io.github.youndie.sborka.publish")
 }
 
 // :agent exposes this module through `api`, so it has to be resolvable for anyone
 // consuming the agent from a Maven repository.
 // The repository this publishes to is no longer named here. It used to be read from `REPOSILITE_URL`
 // with the note that "a public build file is a poor place to publish the location of a private Maven
-// repository" — and the address is now in the public source of `ru.workinprogress.sborka`, together
+// repository" — and the address is now in the public source of `io.github.youndie.sborka`, together
 // with the six repositories that have already migrated, so keeping it out of THIS file conceals
 // nothing that is still concealed. `sborka.publish` declares it, and `sborka.snapshotRepository`
 // overrides it if that ever needs to change.
