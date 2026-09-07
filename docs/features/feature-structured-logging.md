@@ -97,9 +97,9 @@ log.error("payment provider rejected", cause = e) {
 
 | Модуль | Код |
 |---|---|
-| `:shared` | `shared/src/commonMain/kotlin/ru/workinprogress/tracy/wire/` — модель записи, `Level`, редакция |
-| `:agent` | `agent/src/commonMain/kotlin/ru/workinprogress/tracy/agent/TracyLogger.kt` — API |
-| `:agent` | `agent/src/commonMain/kotlin/ru/workinprogress/tracy/agent/Buffer.kt` — кольцевой буфер и батчер |
+| `:shared` | `shared/src/commonMain/kotlin/io/github/youndie/tracy/wire/` — модель записи, `Level`, редакция |
+| `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/TracyLogger.kt` — API |
+| `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/Buffer.kt` — кольцевой буфер и батчер |
 | `:agent` | `agent/src/nativeMain/.../TracyAppender.native.kt`, `agent/src/jvmMain/.../TracySlf4jAppender.kt` |
 
 ## 5. Сценарии

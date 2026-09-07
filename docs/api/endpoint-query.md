@@ -6,7 +6,7 @@ status: active
 services:
   - tracy-server
 contract_source:
-  - ":shared:ru.workinprogress.tracy.query"
+  - ":shared:io.github.youndie.tracy.query"
 parent_feature: feature-log-search
 ---
 
@@ -92,9 +92,9 @@ parent_feature: feature-log-search
 
 | Маршрут | Хэндлер |
 |---|---|
-| `POST /ingest` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/ingest/IngestRouting.kt` |
-| `GET /api/**` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/query/QueryRouting.kt` |
-| `POST /mcp` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/mcp/McpEndpoint.kt` |
+| `POST /ingest` | `server/src/commonMain/kotlin/io/github/youndie/tracy/ingest/IngestRouting.kt` |
+| `GET /api/**` | `server/src/commonMain/kotlin/io/github/youndie/tracy/query/QueryRouting.kt` |
+| `POST /mcp` | `server/src/commonMain/kotlin/io/github/youndie/tracy/mcp/McpEndpoint.kt` |
 
 ## Форма ответа `GET /api/traces/{traceId}`
 

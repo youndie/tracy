@@ -114,10 +114,10 @@ tracy неверна, и API не должен её подразумевать.
 
 | Модуль | Код |
 |---|---|
-| `:server` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/db/Migrate.kt` — схема и миграции |
-| `:server` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/db/LogRepository.kt` — вставка батчем, запросы |
-| `:server` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/template/Normalizer.kt` — маскирование |
-| `:server` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/retention/` — партиции и вытеснение |
+| `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/db/Migrate.kt` — схема и миграции |
+| `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/db/LogRepository.kt` — вставка батчем, запросы |
+| `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/template/Normalizer.kt` — маскирование |
+| `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/retention/` — партиции и вытеснение |
 
 ## 5. Сценарии
 
