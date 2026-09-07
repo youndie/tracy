@@ -3,6 +3,14 @@ package io.github.youndie.tracy.server
 import io.github.smyrgeorge.sqlx4k.ConnectionPool
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.smyrgeorge.sqlx4k.sqlite.sqlite
+import io.github.youndie.tracy.server.db.migrateDb
+import io.github.youndie.tracy.server.ingest.ingestRoutes
+import io.github.youndie.tracy.server.mcp.installMcp
+import io.github.youndie.tracy.server.query.queryRoutes
+import io.github.youndie.tracy.server.retention.Retention
+import io.github.youndie.tracy.server.trace.traceRoutes
+import io.github.youndie.tracy.wire.Level
+import io.github.youndie.tracy.wire.TracyJson
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
@@ -19,14 +27,6 @@ import okio.Path.Companion.toPath
 import okio.SYSTEM
 import org.koin.ktor.ext.get
 import org.koin.ktor.plugin.Koin
-import io.github.youndie.tracy.server.db.migrateDb
-import io.github.youndie.tracy.server.ingest.ingestRoutes
-import io.github.youndie.tracy.server.mcp.installMcp
-import io.github.youndie.tracy.server.query.queryRoutes
-import io.github.youndie.tracy.server.retention.Retention
-import io.github.youndie.tracy.server.trace.traceRoutes
-import io.github.youndie.tracy.wire.Level
-import io.github.youndie.tracy.wire.TracyJson
 
 public fun main() {
     val config = ServerConfig.fromEnv()

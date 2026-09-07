@@ -1,11 +1,11 @@
 package io.github.youndie.tracy.agent
 
-import kotlinx.coroutines.channels.Channel
 import io.github.youndie.tracy.wire.BatchLine
 import io.github.youndie.tracy.wire.EntityRef
 import io.github.youndie.tracy.wire.LogRecord
 import io.github.youndie.tracy.wire.Span
 import io.github.youndie.tracy.wire.TemplateCount
+import kotlinx.coroutines.channels.Channel
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 

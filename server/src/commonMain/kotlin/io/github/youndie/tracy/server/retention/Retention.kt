@@ -4,8 +4,8 @@ import io.github.smyrgeorge.sqlx4k.Statement
 import io.github.smyrgeorge.sqlx4k.impl.coroutines.TransactionContext
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.serialization.Serializable
 import io.github.youndie.tracy.server.db.dayKey
+import kotlinx.serialization.Serializable
 
 @Serializable
 public data class RetentionState(

@@ -1,9 +1,9 @@
 package io.github.youndie.tracy.agent
 
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import io.github.youndie.tracy.wire.Span
 import io.github.youndie.tracy.wire.SpanKind
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

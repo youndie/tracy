@@ -1,7 +1,6 @@
 package io.github.youndie.tracy.server
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import org.koin.dsl.module
 import io.github.youndie.tracy.server.db.EntityKeyBudget
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
@@ -12,6 +11,7 @@ import io.github.youndie.tracy.server.query.QueryRepository
 import io.github.youndie.tracy.server.retention.Retention
 import io.github.youndie.tracy.server.trace.SpanSearchRepository
 import io.github.youndie.tracy.server.trace.TraceRepository
+import org.koin.dsl.module
 
 /**
  * Everything the server owns, built once.

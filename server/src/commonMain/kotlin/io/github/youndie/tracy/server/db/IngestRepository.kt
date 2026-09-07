@@ -5,8 +5,6 @@ import io.github.smyrgeorge.sqlx4k.Statement
 import io.github.smyrgeorge.sqlx4k.impl.coroutines.TransactionContext
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import io.github.youndie.tracy.server.template.Normalizer
 import io.github.youndie.tracy.wire.BatchLine
 import io.github.youndie.tracy.wire.EntityRef
@@ -14,6 +12,8 @@ import io.github.youndie.tracy.wire.LogRecord
 import io.github.youndie.tracy.wire.Span
 import io.github.youndie.tracy.wire.TemplateCount
 import io.github.youndie.tracy.wire.TracyJson
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 public data class BatchHeader(
     val service: String,

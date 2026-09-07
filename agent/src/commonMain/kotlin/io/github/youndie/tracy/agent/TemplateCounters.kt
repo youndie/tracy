@@ -1,8 +1,8 @@
 package io.github.youndie.tracy.agent
 
-import kotlinx.coroutines.channels.Channel
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.TemplateCount
+import kotlinx.coroutines.channels.Channel
 
 /**
  * Minute-window counters per (template, level).

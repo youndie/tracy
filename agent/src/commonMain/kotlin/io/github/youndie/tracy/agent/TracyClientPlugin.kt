@@ -1,11 +1,11 @@
 package io.github.youndie.tracy.agent
 
-import io.ktor.client.plugins.api.Send
-import io.ktor.client.plugins.api.createClientPlugin
-import kotlinx.coroutines.currentCoroutineContext
 import io.github.youndie.tracy.wire.Span
 import io.github.youndie.tracy.wire.SpanKind
 import io.github.youndie.tracy.wire.TraceParent
+import io.ktor.client.plugins.api.Send
+import io.ktor.client.plugins.api.createClientPlugin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlin.time.TimeSource
 
 public class TracyClientConfig {

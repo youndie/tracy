@@ -6,12 +6,12 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asIntOrNull
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.serialization.json.jsonObject
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.SpanKind
 import io.github.youndie.tracy.wire.TraceLogLine
 import io.github.youndie.tracy.wire.TraceView
 import io.github.youndie.tracy.wire.TracyJson
+import kotlinx.serialization.json.jsonObject
 
 /**
  * Reads a trace out of the daily partitions.

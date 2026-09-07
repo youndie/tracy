@@ -5,8 +5,8 @@ import io.github.smyrgeorge.sqlx4k.impl.coroutines.TransactionContext
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asIntOrNull
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.serialization.Serializable
 import io.github.youndie.tracy.wire.SpanKind
+import kotlinx.serialization.Serializable
 
 /**
  * The entry point for "it was slow" — the one case neither tracy nor metrik could answer before.

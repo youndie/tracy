@@ -1,8 +1,6 @@
 package io.github.youndie.tracy.server.trace
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.JsonPrimitive
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
@@ -13,6 +11,8 @@ import io.github.youndie.tracy.wire.LogRecord
 import io.github.youndie.tracy.wire.Span
 import io.github.youndie.tracy.wire.SpanKind
 import io.github.youndie.tracy.wire.TraceNode
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

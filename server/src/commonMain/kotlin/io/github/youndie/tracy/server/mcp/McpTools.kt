@@ -1,6 +1,5 @@
 package io.github.youndie.tracy.server.mcp
 
-import kotlinx.serialization.Serializable
 import io.github.youndie.tracy.server.query.EntityRepository
 import io.github.youndie.tracy.server.query.LogHit
 import io.github.youndie.tracy.server.query.QueryRepository
@@ -8,6 +7,7 @@ import io.github.youndie.tracy.server.query.UnknownEntityKey
 import io.github.youndie.tracy.server.trace.SpanSearchRepository
 import io.github.youndie.tracy.server.trace.TraceRepository
 import io.github.youndie.tracy.wire.Level
+import kotlinx.serialization.Serializable
 
 /**
  * What an agent is shown in **phase one**: structure and nothing that free-form text can hide in.

@@ -1,5 +1,8 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.wire.Span
+import io.github.youndie.tracy.wire.SpanKind
+import io.github.youndie.tracy.wire.TraceParent
 import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.createApplicationPlugin
 import io.ktor.server.request.header
@@ -7,9 +10,6 @@ import io.ktor.server.request.httpMethod
 import io.ktor.server.routing.RoutingRoot
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.withContext
-import io.github.youndie.tracy.wire.Span
-import io.github.youndie.tracy.wire.SpanKind
-import io.github.youndie.tracy.wire.TraceParent
 import kotlin.time.TimeSource
 
 public class TracyPluginConfig {

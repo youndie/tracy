@@ -1,5 +1,7 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.wire.Level
+import io.github.youndie.tracy.wire.LogRecord
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
@@ -20,8 +22,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import platform.posix.fclose
 import platform.posix.fgets
 import platform.posix.fopen
-import io.github.youndie.tracy.wire.Level
-import io.github.youndie.tracy.wire.LogRecord
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue

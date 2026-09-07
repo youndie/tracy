@@ -1,8 +1,8 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.wire.Level
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import io.github.youndie.tracy.wire.Level
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

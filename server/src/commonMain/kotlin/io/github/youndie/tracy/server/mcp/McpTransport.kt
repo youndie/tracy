@@ -1,5 +1,6 @@
 package io.github.youndie.tracy.server.mcp
 
+import io.github.youndie.tracy.server.ServerConfig
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -11,7 +12,6 @@ import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.mcpStatelessStreamableHttp
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
-import io.github.youndie.tracy.server.ServerConfig
 
 /**
  * Installs the MCP transport — and only when a token is configured.

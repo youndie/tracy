@@ -1,7 +1,7 @@
 package io.github.youndie.tracy.agent
 
-import kotlinx.serialization.json.JsonPrimitive
 import io.github.youndie.tracy.wire.Fields
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Receiver of the `{ field(...) }` block.

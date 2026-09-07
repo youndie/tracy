@@ -2,12 +2,12 @@ package io.github.youndie.tracy.server.ingest
 
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.coroutines.test.runTest
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.LogRecord
+import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

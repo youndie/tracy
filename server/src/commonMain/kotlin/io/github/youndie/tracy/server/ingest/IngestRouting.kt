@@ -1,13 +1,5 @@
 package io.github.youndie.tracy.server.ingest
 
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.application.ApplicationCall
-import io.ktor.server.request.header
-import io.ktor.server.request.receiveText
-import io.ktor.server.response.respondText
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.post
-import org.koin.ktor.ext.inject
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.EntityKeyBudget
@@ -16,6 +8,14 @@ import io.github.youndie.tracy.wire.IngestHeaders
 import io.github.youndie.tracy.wire.IngestResponse
 import io.github.youndie.tracy.wire.NdJson
 import io.github.youndie.tracy.wire.TracyJson
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.request.header
+import io.ktor.server.request.receiveText
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.post
+import org.koin.ktor.ext.inject
 
 public fun Route.ingestRoutes() {
     val config by inject<ServerConfig>()

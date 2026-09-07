@@ -1,5 +1,9 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.wire.IngestHeaders
+import io.github.youndie.tracy.wire.Level
+import io.github.youndie.tracy.wire.LogRecord
+import io.github.youndie.tracy.wire.NdJson
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
@@ -9,10 +13,6 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
-import io.github.youndie.tracy.wire.IngestHeaders
-import io.github.youndie.tracy.wire.Level
-import io.github.youndie.tracy.wire.LogRecord
-import io.github.youndie.tracy.wire.NdJson
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs

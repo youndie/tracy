@@ -1,8 +1,8 @@
 package io.github.youndie.tracy.agent
 
-import kotlinx.coroutines.test.runTest
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.LogRecord
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

@@ -1,5 +1,8 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.wire.Span
+import io.github.youndie.tracy.wire.SpanKind
+import io.github.youndie.tracy.wire.TraceParent
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
@@ -11,9 +14,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import io.github.youndie.tracy.wire.Span
-import io.github.youndie.tracy.wire.SpanKind
-import io.github.youndie.tracy.wire.TraceParent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

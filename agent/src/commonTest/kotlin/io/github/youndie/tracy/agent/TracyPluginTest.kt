@@ -1,5 +1,10 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.wire.EntityRef
+import io.github.youndie.tracy.wire.Level
+import io.github.youndie.tracy.wire.LogRecord
+import io.github.youndie.tracy.wire.Span
+import io.github.youndie.tracy.wire.SpanKind
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -10,11 +15,6 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
-import io.github.youndie.tracy.wire.EntityRef
-import io.github.youndie.tracy.wire.Level
-import io.github.youndie.tracy.wire.LogRecord
-import io.github.youndie.tracy.wire.Span
-import io.github.youndie.tracy.wire.SpanKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

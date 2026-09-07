@@ -1,5 +1,11 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.wire.BatchLine
+import io.github.youndie.tracy.wire.INGEST_PATH
+import io.github.youndie.tracy.wire.IngestHeaders
+import io.github.youndie.tracy.wire.IngestResponse
+import io.github.youndie.tracy.wire.NdJson
+import io.github.youndie.tracy.wire.TracyJson
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.header
@@ -8,12 +14,6 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.github.youndie.tracy.wire.BatchLine
-import io.github.youndie.tracy.wire.INGEST_PATH
-import io.github.youndie.tracy.wire.IngestHeaders
-import io.github.youndie.tracy.wire.IngestResponse
-import io.github.youndie.tracy.wire.NdJson
-import io.github.youndie.tracy.wire.TracyJson
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 

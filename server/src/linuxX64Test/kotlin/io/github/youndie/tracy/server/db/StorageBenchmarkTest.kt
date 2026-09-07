@@ -1,6 +1,10 @@
 package io.github.youndie.tracy.server.db
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
+import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
+import io.github.youndie.tracy.server.openDatabase
+import io.github.youndie.tracy.wire.Level
+import io.github.youndie.tracy.wire.LogRecord
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -8,10 +12,6 @@ import kotlinx.cinterop.ptr
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
 import platform.posix.stat
-import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
-import io.github.youndie.tracy.server.openDatabase
-import io.github.youndie.tracy.wire.Level
-import io.github.youndie.tracy.wire.LogRecord
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertTrue

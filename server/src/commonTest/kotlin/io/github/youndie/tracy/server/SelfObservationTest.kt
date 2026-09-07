@@ -1,11 +1,11 @@
 package io.github.youndie.tracy.server
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.coroutines.test.runTest
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
 import io.github.youndie.tracy.server.query.QueryRepository
 import io.github.youndie.tracy.wire.Level
+import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

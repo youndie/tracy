@@ -1,14 +1,14 @@
 package io.github.youndie.tracy.server.trace
 
+import io.github.youndie.tracy.server.query.SpansResource
+import io.github.youndie.tracy.server.query.TraceResource
+import io.github.youndie.tracy.wire.TracyJson
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.resources.get
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import org.koin.ktor.ext.inject
-import io.github.youndie.tracy.server.query.SpansResource
-import io.github.youndie.tracy.server.query.TraceResource
-import io.github.youndie.tracy.wire.TracyJson
 
 private val TRACE_ID = Regex("[0-9a-f]{32}")
 

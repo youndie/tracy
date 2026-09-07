@@ -1,8 +1,6 @@
 package io.github.youndie.tracy.server.query
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.JsonPrimitive
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
@@ -11,6 +9,8 @@ import io.github.youndie.tracy.wire.ExceptionInfo
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.LogRecord
 import io.github.youndie.tracy.wire.TemplateCount
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

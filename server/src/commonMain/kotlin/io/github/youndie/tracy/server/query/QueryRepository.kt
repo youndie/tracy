@@ -6,9 +6,9 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asIntOrNull
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import kotlinx.serialization.Serializable
 import io.github.youndie.tracy.server.db.dayKey
 import io.github.youndie.tracy.wire.Level
+import kotlinx.serialization.Serializable
 
 @Serializable
 public data class LogHit(

@@ -1,14 +1,5 @@
 package io.github.youndie.tracy.server.mcp
 
-import io.ktor.client.HttpClient
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.server.cio.CIO
-import io.ktor.server.engine.embeddedServer
-import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.JsonPrimitive
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
@@ -20,6 +11,15 @@ import io.github.youndie.tracy.server.trace.SpanSearchRepository
 import io.github.youndie.tracy.server.trace.TraceRepository
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.LogRecord
+import io.ktor.client.HttpClient
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.server.cio.CIO
+import io.ktor.server.engine.embeddedServer
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
