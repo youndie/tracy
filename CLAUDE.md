@@ -112,7 +112,7 @@ Gradle, сообщения коммитов, корневой `README.md`. До�
 
 | Репо | Зачем смотреть |
 |---|---|
-| [katcher](https://github.com/youndie/katcher) | тот же стек (Kotlin/Native + Ktor CIO + sqlx4k + Helm) и **работающий в проде MCP**: `server/src/commonMain/kotlin/ru/workinprogress/katcher/mcp/`, `db/Migrate.kt`, `charts/katcher` |
+| [katcher](https://github.com/youndie/katcher) | тот же стек (Kotlin/Native + Ktor CIO + sqlx4k + Helm) и **работающий в проде MCP**: `server/src/commonMain/kotlin/io/github/youndie/katcher/mcp/`, `db/Migrate.kt`, `charts/katcher` |
 | metrik | четыре дорогие находки про Kotlin/Native (селекторы, DNS, TLS, статика) — research §1.5. Резолвинг DNS оттуда tracy **не нужен**: это грабля сокетов `ktor-network`, а не HTTP-клиента |
 
 ## Правило, которое стоит соблюдать

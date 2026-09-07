@@ -56,7 +56,7 @@ tags: [sqlite, fts5, retention]
 ## 3. Как это работает
 
 Схема (детали и миграции — [tracy-server](../services/tracy-server.md); образец механики миграций —
-`katcher/server/src/commonMain/kotlin/ru/workinprogress/katcher/db/Migrate.kt`):
+`katcher/server/src/commonMain/kotlin/io/github/youndie/katcher/db/Migrate.kt`):
 
 | Таблица | Назначение |
 |---|---|

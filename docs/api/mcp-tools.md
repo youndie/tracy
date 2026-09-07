@@ -170,7 +170,7 @@ self-hosted статический токен — прагматичный вы�
 | Поведение инструментов без транспорта | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/McpTools.kt` |
 | Статический скрин | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/LogTrust.kt` |
 | Двухфазный гейт | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/EntryContentGate.kt` |
-| Рабочий образец всего перечисленного | `katcher/server/src/commonMain/kotlin/ru/workinprogress/katcher/mcp/` |
+| Рабочий образец всего перечисленного | `katcher/server/src/commonMain/kotlin/io/github/youndie/katcher/mcp/` |
 
 ## Грабли SDK 0.15.0 (проверены в tracy на живом сокете)
 

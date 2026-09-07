@@ -438,7 +438,7 @@ Curl работает на **собственных потоках** и ворк
 
 ### Р5. Хранение — SQLite; FTS5 над **шаблонами**, а не над записями
 
-Схема (детали — `feature-log-search`, миграции по образцу `katcher/server/src/commonMain/kotlin/ru/workinprogress/katcher/db/Migrate.kt`):
+Схема (детали — `feature-log-search`, миграции по образцу `katcher/server/src/commonMain/kotlin/io/github/youndie/katcher/db/Migrate.kt`):
 
 - `log_entry_YYYYMMDD` — `id, service_id, instance_id, ts, level, logger, template_id,
   raw_message (NULL у структурных), exception_class_id, trace_id, span_id, fields (JSON), release`;
