@@ -42,7 +42,7 @@ publishes:
 ## 2. Контракт
 
 [protocol-ingest](../api/protocol-ingest.md). Модель записи и разбор `traceparent` — в `:shared`
-(`ru.workinprogress.tracy.wire`), общие для агента и сервера. Поля здесь не дублируются.
+(`io.github.youndie.tracy.wire`), общие для агента и сервера. Поля здесь не дублируются.
 
 ## 2а. Ключевые файлы (якоря кода)
 

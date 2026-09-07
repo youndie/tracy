@@ -6,7 +6,7 @@ status: active
 services:
   - tracy-server
 contract_source:
-  - ":server:ru.workinprogress.tracy.server.mcp.RegisterTools"
+  - ":server:io.github.youndie.tracy.server.mcp.RegisterTools"
 parent_feature: feature-mcp-access
 ---
 
@@ -164,12 +164,12 @@ self-hosted статический токен — прагматичный вы�
 
 | Что | Где |
 |---|---|
-| Bearer, `allowedHosts` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/McpEndpoint.kt` |
-| Установка транспорта SDK | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/McpTransport.kt` |
-| Регистрация инструментов и схемы | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/RegisterTools.kt` |
-| Поведение инструментов без транспорта | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/McpTools.kt` |
-| Статический скрин | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/LogTrust.kt` |
-| Двухфазный гейт | `server/src/commonMain/kotlin/ru/workinprogress/tracy/server/mcp/EntryContentGate.kt` |
+| Bearer, `allowedHosts` | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/McpEndpoint.kt` |
+| Установка транспорта SDK | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/McpTransport.kt` |
+| Регистрация инструментов и схемы | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/RegisterTools.kt` |
+| Поведение инструментов без транспорта | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/McpTools.kt` |
+| Статический скрин | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/LogTrust.kt` |
+| Двухфазный гейт | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/EntryContentGate.kt` |
 | Рабочий образец всего перечисленного | `katcher/server/src/commonMain/kotlin/ru/workinprogress/katcher/mcp/` |
 
 ## Грабли SDK 0.15.0 (проверены в tracy на живом сокете)

@@ -101,13 +101,13 @@ POST /orders                                     A   412 ms
 
 | Модуль | Код |
 |---|---|
-| `:shared` | `shared/src/commonMain/kotlin/ru/workinprogress/tracy/wire/TraceParent.kt` — разбор и сборка заголовка |
-| `:shared` | `shared/src/commonMain/kotlin/ru/workinprogress/tracy/wire/Span.kt` — модель спана на проводе |
-| `:agent` | `agent/src/commonMain/kotlin/ru/workinprogress/tracy/agent/TracyPlugin.kt` — серверный плагин, спан входящего запроса |
-| `:agent` | `agent/src/commonMain/kotlin/ru/workinprogress/tracy/agent/TracyClientPlugin.kt` — плагин Ktor-клиента, спан исходящего вызова |
-| `:agent` | `agent/src/commonMain/kotlin/ru/workinprogress/tracy/agent/Span.kt` — `withSpan { }` |
-| `:agent` | `agent/src/commonMain/kotlin/ru/workinprogress/tracy/agent/TracyTraceContext.kt` — элемент корутинного контекста |
-| `:server` | `server/src/commonMain/kotlin/ru/workinprogress/tracy/trace/TraceAssembler.kt` — сборка дерева |
+| `:shared` | `shared/src/commonMain/kotlin/io/github/youndie/tracy/wire/TraceParent.kt` — разбор и сборка заголовка |
+| `:shared` | `shared/src/commonMain/kotlin/io/github/youndie/tracy/wire/Span.kt` — модель спана на проводе |
+| `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/TracyPlugin.kt` — серверный плагин, спан входящего запроса |
+| `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/TracyClientPlugin.kt` — плагин Ktor-клиента, спан исходящего вызова |
+| `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/Span.kt` — `withSpan { }` |
+| `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/TracyTraceContext.kt` — элемент корутинного контекста |
+| `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/trace/TraceAssembler.kt` — сборка дерева |
 
 ## 5. Сценарии
 

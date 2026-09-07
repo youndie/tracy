@@ -5,7 +5,7 @@ type: api_protocol
 status: active
 layer: api
 involved_services: [tracy-agent, tracy-server]
-contract_source: ":shared (ru.workinprogress.tracy.wire)"
+contract_source: ":shared (io.github.youndie.tracy.wire)"
 parent_feature: feature-structured-logging
 ---
 
@@ -242,9 +242,9 @@ URL. Имя спана — низкокардинальная структура
 
 | Что | Где |
 |---|---|
-| Модель записи и сериализация | `shared/src/commonMain/kotlin/ru/workinprogress/tracy/wire/` |
-| Отправитель, ретраи, буфер | `agent/src/commonMain/kotlin/ru/workinprogress/tracy/agent/Sender.kt` |
-| Обработчик приёма | `server/src/commonMain/kotlin/ru/workinprogress/tracy/ingest/IngestRouting.kt` |
+| Модель записи и сериализация | `shared/src/commonMain/kotlin/io/github/youndie/tracy/wire/` |
+| Отправитель, ретраи, буфер | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/Sender.kt` |
+| Обработчик приёма | `server/src/commonMain/kotlin/io/github/youndie/tracy/ingest/IngestRouting.kt` |
 
 ## Грабли, известные заранее
 
