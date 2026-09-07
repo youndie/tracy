@@ -56,7 +56,7 @@ publishes:
 | `server/src/commonMain/.../mcp/` | MCP: транспорт, инструменты, скрин |
 
 Образец для копирования по механике миграций, DI и чарта —
-`katcher/server/src/commonMain/kotlin/ru/workinprogress/katcher/db/Migrate.kt`,
+`katcher/server/src/commonMain/kotlin/io/github/youndie/katcher/db/Migrate.kt`,
 `Application.kt`, `charts/katcher`.
 
 ## 3. Как устроено

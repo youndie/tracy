@@ -85,7 +85,7 @@ tags: [mcp, security, agentjacking]
 | `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/mcp/McpEndpoint.kt` — транспорт, bearer, `allowedHosts` |
 | `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/mcp/Tools.kt` — определения инструментов |
 | `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/mcp/LogTrust.kt` — статический скрин |
-| Образец | `katcher/server/src/commonMain/kotlin/ru/workinprogress/katcher/mcp/` |
+| Образец | `katcher/server/src/commonMain/kotlin/io/github/youndie/katcher/mcp/` |
 
 ## 5. Сценарии
 
