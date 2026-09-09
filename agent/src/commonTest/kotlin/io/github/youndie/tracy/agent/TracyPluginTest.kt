@@ -218,6 +218,10 @@ class TracyPluginTest {
         runTest {
             val agent = agent(sampleRate = 0.0, random = { 1.0 })
             withApp(agent) { client, port ->
+                @Suppress(
+                    "ktlint:kapkan:cancellation-swallowed",
+                    "a test capturing the throw it is about; nothing cancels this scope",
+                )
                 runCatching { client.get("http://127.0.0.1:$port/boom") }
             }
 

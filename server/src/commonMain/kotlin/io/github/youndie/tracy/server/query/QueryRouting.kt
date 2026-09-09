@@ -170,6 +170,10 @@ private suspend fun ApplicationCall.window(
 /** Null means the answer was already sent; a wrapper holding null means "no level filter". */
 private suspend fun ApplicationCall.level(name: String?): LevelFilter? {
     if (name == null) return LevelFilter(null)
+    @Suppress(
+        "ktlint:kapkan:cancellation-swallowed",
+        "parsing an enum name is synchronous: there is no suspension point to be cancelled at",
+    )
     val parsed = runCatching { Level.valueOf(name.uppercase()) }.getOrNull()
     if (parsed == null) {
         badRequest("unknown level: $name")

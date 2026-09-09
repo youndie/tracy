@@ -14,6 +14,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -79,7 +80,10 @@ public class Sender(
 
         val body = NdJson.encodeBatch(batch)
 
-        return runCatching {
+        // `try` and not `runCatching`: the tail below turns any failure into `Retriable`, and a
+        // cancelled send answered that way keeps the retry loop working a batch for an agent that
+        // has already been shut down.
+        return try {
             val response =
                 client.post(config.endpoint.trimEnd('/') + INGEST_PATH) {
                     contentType(ContentType("application", "x-ndjson"))
@@ -102,8 +106,14 @@ public class Sender(
 
             when (val status = response.status.value) {
                 202 -> {
+                    val text = response.bodyAsText()
+
+                    @Suppress(
+                        "ktlint:kapkan:cancellation-swallowed",
+                        "the body is read on the line above; decoding it is synchronous",
+                    )
                     val parsed =
-                        runCatching { TracyJson.decodeFromString<IngestResponse>(response.bodyAsText()) }
+                        runCatching { TracyJson.decodeFromString<IngestResponse>(text) }
                             .getOrDefault(IngestResponse(accepted = batch.size))
                     SendResult.Accepted(parsed.accepted, parsed.suppressedKeys, parsed.malformed)
                 }
@@ -118,7 +128,9 @@ public class Sender(
                     SendResult.Retriable("HTTP $status")
                 }
             }
-        }.getOrElse { failure ->
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (failure: Throwable) {
             SendResult.Retriable(failure::class.simpleName ?: "network failure")
         }
     }

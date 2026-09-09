@@ -6,6 +6,7 @@ import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.LogRecord
 import io.github.youndie.tracy.wire.Redactor
 import io.github.youndie.tracy.wire.TemplateCount
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * tracy watching itself.
@@ -77,7 +78,9 @@ public class SelfObservation(
 
         // Failure here must never propagate: a server that cannot write its own log line still
         // has to accept everyone else's.
-        runCatching {
+        // The failure must never propagate -- see above -- but a cancellation is not this write
+        // failing: swallowed here it would keep the caller running after it had been stopped.
+        try {
             acceptBatch(
                 BatchHeader(
                     service = service,
@@ -87,6 +90,10 @@ public class SelfObservation(
                 ),
                 listOf(record, counter),
             )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            // A server that cannot write its own log line still has to accept everyone else's.
         }
     }
 }

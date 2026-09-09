@@ -27,6 +27,7 @@ import okio.Path.Companion.toPath
 import okio.SYSTEM
 import org.koin.ktor.ext.get
 import org.koin.ktor.plugin.Koin
+import kotlin.coroutines.cancellation.CancellationException
 
 public fun main() {
     val config = ServerConfig.fromEnv()
@@ -98,7 +99,25 @@ public fun Application.module(
     // fired and the disk would have filled with the feature reporting itself as present.
     launch {
         while (true) {
-            val state = runCatching { retention.enforce() }.getOrNull()
+            val state =
+                try {
+                    retention.enforce()
+                } catch (cancelled: CancellationException) {
+                    // The server stopping is not a sweep that failed: answered as one, this loop
+                    // goes round again after its own cancellation.
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    // The loop must survive a failed sweep -- the next interval tries again -- but
+                    // it used to survive it in silence, and a size cap that never fires looks
+                    // exactly like one that has nothing to do.
+                    self?.log(
+                        Level.WARN,
+                        "Retention",
+                        "retention sweep failed",
+                        mapOf("failure" to (failure::class.simpleName ?: "unknown")),
+                    )
+                    null
+                }
             if (state != null && self != null) {
                 // A sweep is rare by construction — once an hour — so logging it cannot feed
                 // the loop that logging every batch would.
