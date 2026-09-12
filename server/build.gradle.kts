@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("io.github.youndie.sborka.kmp")
     id("io.github.youndie.sborka.lint")
+    id("io.github.youndie.sborka.parity")
 }
 
 // NOT PUBLISHED: the server ships as a container image, not as an artefact, so no `sborka.publish`
@@ -10,6 +11,16 @@ plugins {
 // there is no consumer for a spelled-out surface to be spelled out for.
 kotlin {
     explicitApi = null
+}
+
+// WHERE THE PLATFORM PROBE LOOKS.
+//
+// `localhost` and port 0: the name is what the probe resolves, and the port is bound by the test
+// itself. A real service name would be a better question and needs something listening in CI, which
+// this repository does not have — see `PlatformTest` for what that costs and what it still catches.
+parityProbe {
+    host = "localhost"
+    port = 0
 }
 
 kotlin {
