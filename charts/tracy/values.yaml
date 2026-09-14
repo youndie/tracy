@@ -10,7 +10,10 @@ hostname: ""
 
 server:
   image: tracy
-  version: 0.2.2
+  # 0.3.0 AND NOT EARLIER: the chart above probes `/health/startup`, and an image without that
+  # route fails the startup probe sixty times and is restarted. The chart and the image move
+  # together or the install is a CrashLoop behind a healthy-looking deployment.
+  version: 0.3.0
   resources:
     requests:
       cpu: "50m"

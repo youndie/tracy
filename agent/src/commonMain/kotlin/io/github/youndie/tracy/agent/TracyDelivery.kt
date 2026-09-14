@@ -58,10 +58,25 @@ public class TracyDelivery(
     public var malformed: Int = 0
         private set
 
-    public fun start(scope: CoroutineScope) {
+    /**
+     * Starts the loop, and **returns itself** so the caller ends up holding the thing that has to be
+     * stopped.
+     *
+     * That return is the whole of issue #32. [stop] was written for exactly the moment a pod is
+     * asked to end, and by default nobody called it: the documented wiring was
+     * `TracyDelivery(agent, config).start(this)`, which gives the caller no reason to keep a
+     * reference, and without a reference `stop` cannot be called at all. The most complete service
+     * in the portfolio wrote precisely that line, and every shutdown lost up to one flush interval
+     * of records — including the records explaining the shutdown.
+     *
+     * [Application.startTracyDelivery] is the shorter form for a service that has no ordered
+     * shutdown of its own.
+     */
+    public fun start(scope: CoroutineScope): TracyDelivery {
         check(job == null) { "delivery already started" }
         agent.onUrgent = ::requestFlush
         job = scope.launch { loop() }
+        return this
     }
 
     /**
@@ -78,6 +93,11 @@ public class TracyDelivery(
      * A pod is given a grace period between `SIGTERM` and `SIGKILL`, and the records produced
      * during a shutdown — the ones explaining why it shut down — are the least replaceable ones
      * in the buffer.
+     *
+     * **Calling it twice is not an error**: the second call finds no loop, and its flush finds an
+     * empty buffer. A service that takes the `ApplicationStopping` subscription of
+     * `startTracyDelivery` *and* stops the delivery from its own shutdown sequence therefore pays
+     * one wasted attempt rather than meeting a crash.
      */
     public suspend fun stop(grace: kotlin.time.Duration = config.flushInterval) {
         agent.onUrgent = null

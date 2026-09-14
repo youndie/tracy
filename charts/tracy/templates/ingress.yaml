@@ -69,7 +69,7 @@ spec:
         - name: tracy-server
           port: 8080
       priority: 1
-    # Everything not matched above — `/api/**` and `/health` — goes through forward-auth. tracy
+    # Everything not matched above — `/api/**` and `/health/**` — goes through forward-auth. tracy
     # has no login of its own and trusts the proxy's headers, which is exactly why it must never
     # be reachable without one (docs/api/endpoint-query.md).
     - match: Host(`{{ .Values.hostname }}`)

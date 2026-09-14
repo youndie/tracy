@@ -30,7 +30,7 @@ cannot come into existence without the authentication that replaces it.
 middleware would reject them before tracy saw the request. Each bypasses it and authenticates
 itself instead — `X-Tracy-Key` for ingest, a bearer token for MCP.
 
-Everything else, including `/api/**` and `/health`, goes through the proxy. tracy has no login of
+Everything else, including `/api/**` and the `/health/**` routes, goes through the proxy. tracy has no login of
 its own and trusts the proxy's headers, which is exactly why it must never be reachable without
 one.
 

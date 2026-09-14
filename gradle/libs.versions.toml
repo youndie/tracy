@@ -2,20 +2,28 @@
 # The shared build conventions. One number: every sborka plugin below takes its version from here.
 sborka = "0.4.0.57"
 kotlin = "2.4.10"
+# kore: the process lifecycle of a server binary — ordered shutdown, three probes, /version. One
+# number for the two libraries and the Gradle plugin that generates the build identity: they are
+# published together, and a plugin from one version with a library from another would compile and
+# then disagree about the object it generates.
+kore = "0.1.4"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerializationJson = "1.11.0"
 kotlinxDatetime = "0.8.0"
-okio = "3.18.1"
-sqlx4k = "1.13.0"
+okio = "3.18.2"
+sqlx4k = "1.13.1"
 kotlinLogging = "8.0.4"
 mcpSdk = "0.15.0"
 koin = "4.2.2"
-logback = "1.6.2"
+logback = "1.6.3"
 ktlintPlugin = "14.2.0"
 # renovate: datasource=maven depName=com.pinterest.ktlint:ktlint-cli
 ktlint = "1.8.0"
 
 [libraries]
+kore-core = { module = "io.github.youndie:kore-core", version.ref = "kore" }
+kore-ktor = { module = "io.github.youndie:kore-ktor", version.ref = "kore" }
+
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
@@ -31,6 +39,7 @@ koin-ktor = { module = "io.insert-koin:koin-ktor" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 [plugins]
+koreBuild = { id = "io.github.youndie.kore.build", version.ref = "kore" }
 sborkaKmp = { id = "io.github.youndie.sborka.kmp", version.ref = "sborka" }
 sborkaLint = { id = "io.github.youndie.sborka.lint", version.ref = "sborka" }
 sborkaParity = { id = "io.github.youndie.sborka.parity", version.ref = "sborka" }
