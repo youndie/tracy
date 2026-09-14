@@ -80,7 +80,12 @@ val config = AgentConfig(
 val tracy = TracyAgent(config, clock = { Clock.System.now().toEpochMilliseconds() })
 
 // Nothing leaves the process until this runs: the agent buffers, the delivery loop sends.
-TracyDelivery(tracy, config).start(this)
+// It also stops on `ApplicationStopping` and flushes what is buffered — the records explaining a
+// shutdown are the least replaceable ones there are, and until 0.3 nothing called `stop()` at all.
+// Keep the handle if you have a shutdown sequence of your own: on Kotlin/Native
+// `ApplicationStopping` fires *before* the engine drains, so the last records still need
+// `delivery.stop()` from wherever your order puts telemetry.
+val delivery = startTracyDelivery(tracy, config)
 
 install(Tracy) { agent = tracy }  // incoming spans, trace context, tail sampling
 ```

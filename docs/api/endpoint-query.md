@@ -37,7 +37,11 @@ parent_feature: feature-log-search
 | `POST /api/entities/{key}/unsuppress` | заголовки reverse proxy | снять предохранитель с ключа; идемпотентно |
 | `GET /api/traces/{traceId}` | заголовки reverse proxy | **дерево спанов + вписанные записи логов** по всем сервисам |
 | `GET /api/templates` | заголовки reverse proxy | частотные шаблоны: `service`, `since`, `until`, `level`, `release`, `step`, `limit`. `step` даёт **ряд по времени**, `release` — разрез по выкату |
-| `GET /health` | нет | живость + состояние ретенции |
+| `GET /health/startup` | нет | защёлка старта: `200` после миграций и запуска движка, дальше всегда `200` |
+| `GET /health/ready` | нет | готовность: проверка базы (`SELECT 1`) **и** защёлка остановки; `503` в обоих случаях |
+| `GET /health/live` | нет | живость. `GET /health` — её же алиас, сохранённый для чартов, которые его называют |
+| `GET /health/retention` | нет | состояние ретенции: размер БД, старейшая запись, вытеснение, подавленные ключи. Было телом `/health` до 0.3 |
+| `GET /version` | нет | версия, коммит и время сборки, вкомпилированные в бинарь |
 | `POST /mcp` | `Authorization: Bearer` | MCP, [mcp-tools](mcp-tools.md); маршрута нет, если токен не задан |
 
 **Auth-tier «заголовки reverse proxy»** означает буквально то же, что в metrik и katcher: сервер

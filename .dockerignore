@@ -1,11 +1,16 @@
-# Build outputs and caches: a full `build/` tree is larger than everything else combined and
-# would be sent to the daemon on every build only to be overwritten by the build itself.
+# WHAT THE IMAGE BUILD MUST NOT CARRY. `server/Dockerfile` does `COPY . .`, so everything here is
+# sent to the daemon on every build, and a checkout that has built once holds hundreds of megabytes
+# of `build/` directories against a few tens of megabytes of sources. CI never notices — a fresh
+# checkout has none of them — which is why this file is easy to forget and only bites locally.
+#
+# NOTHING GIT TRACKS MAY BE LISTED HERE. The build context is a working tree as far as git is
+# concerned, and the `io.github.youndie.kore.build` plugin runs git in it to decide the `dirty` flag
+# it compiles into `/version`; an excluded tracked file reads as a deleted one and the stamp becomes
+# `-dirty` for ever. katcher published exactly that. So this list is only what git ignores anyway.
+#
+# `.git` IS DELIBERATELY ABSENT: without it the commit in `/version` is `unknown`.
 **/build/
 .gradle/
 .kotlin/
 .idea/
-.git/
-
-charts/
-docs/
-*.md
+local.properties

@@ -20,6 +20,12 @@ spec:
       labels:
         app: tracy-server
     spec:
+      # THE NUMBER THE SHUTDOWN PLAN IS CHECKED AGAINST. `DEADLINES` in the server's `Application.kt`
+      # adds up to 21 seconds and declares 30 as the budget it fits into; nothing tells a process
+      # its real grace period on any platform, so the two are one number written in two places and
+      # they move together. Lower this and the process is SIGKILLed mid-drain, with kore's fit
+      # check saying nothing, because it was told 30.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: tracy-server
           image: "{{ .Values.registry.server }}/{{ .Values.registry.org }}/{{ .Values.server.image }}:{{ .Values.server.version }}"
@@ -59,20 +65,36 @@ spec:
             - name: TRACY_MCP_ALLOWED_HOSTS
               value: {{ .Values.hostname | quote }}
             {{- end }}
-          # `/health` reports retention state as well as liveness, and that is the point: a
-          # server that is up while silently evicting everything is the failure an operator
-          # finds out about too late.
+          # THREE PROBES, THREE QUESTIONS. Both of these used to point at `/health`, which made the
+          # readiness probe one that cannot fail while the process is alive: a tracy that had lost
+          # its database stayed in the Service and went on being sent batches, and the only thing
+          # that could take it out was the liveness probe restarting it — the heaviest possible
+          # answer to a store problem.
+          #
+          # Retention state has not gone anywhere; it moved to `/health/retention`, which is a
+          # report rather than a probe. It is deliberately not a readiness check either: a tracy
+          # that cannot evict can still answer queries, and taking the only instance out of service
+          # over a full disk is an outage of the thing you read to diagnose the full disk.
+          #
+          # `failureThreshold: 60` with `periodSeconds: 1` rather than a long `initialDelaySeconds`:
+          # the pod enters service as soon as it is ready instead of at a fixed time chosen for the
+          # worst case. Migrations run before the engine serves, so the minute is for them.
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 1
+            failureThreshold: 60
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: http
-            initialDelaySeconds: 2
-            periodSeconds: 10
+            periodSeconds: 2
+            failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: http
-            initialDelaySeconds: 10
             periodSeconds: 30
             # Generous on purpose: a slow reply here means the single writer is busy, and
             # restarting the process mid-write is worse than waiting for it.

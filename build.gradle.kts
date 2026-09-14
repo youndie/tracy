@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.sborkaKmp) apply false
     alias(libs.plugins.sborkaLint) apply false
     alias(libs.plugins.sborkaPublish) apply false
+    alias(libs.plugins.koreBuild) apply false
 }
 
 // The group, the version and the ktlint wiring used to be handed out from a `subprojects { }` block
