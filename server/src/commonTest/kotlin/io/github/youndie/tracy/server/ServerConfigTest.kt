@@ -31,6 +31,41 @@ class ServerConfigTest {
     }
 
     @Test
+    fun `the pool is two connections wide and reaps nothing unless told otherwise`() {
+        val config = ServerConfig.fromEnv(env("TRACY_INGEST_KEY" to "k"))
+
+        assertEquals(ServerConfig.DEFAULT_DB_MAX_CONNECTIONS, config.dbMaxConnections)
+        assertNull(config.dbIdleTimeoutSeconds)
+    }
+
+    @Test
+    fun `a pool size that is not a positive number falls back to the default`() {
+        // Zero connections is not a smaller pool, it is a server that cannot answer; a typo must
+        // not be able to express it.
+        listOf("0", "-4", "many", "").forEach { value ->
+            val config =
+                ServerConfig.fromEnv(env("TRACY_INGEST_KEY" to "k", "TRACY_DB_MAX_CONNECTIONS" to value))
+
+            assertEquals(ServerConfig.DEFAULT_DB_MAX_CONNECTIONS, config.dbMaxConnections, "for '$value'")
+        }
+    }
+
+    @Test
+    fun `the pool knobs are read from the environment`() {
+        val config =
+            ServerConfig.fromEnv(
+                env(
+                    "TRACY_INGEST_KEY" to "k",
+                    "TRACY_DB_MAX_CONNECTIONS" to "4",
+                    "TRACY_DB_IDLE_TIMEOUT_SECONDS" to "60",
+                ),
+            )
+
+        assertEquals(4, config.dbMaxConnections)
+        assertEquals(60, config.dbIdleTimeoutSeconds)
+    }
+
+    @Test
     fun `mcp stays off when no token is configured`() {
         val config = ServerConfig.fromEnv(env("TRACY_INGEST_KEY" to "k"))
 

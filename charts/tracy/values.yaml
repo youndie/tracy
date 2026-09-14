@@ -23,24 +23,32 @@ server:
       # SQLite here is not a client of a database server — it *is* the database, and the page cache
       # lives in this process.
       #
-      # 256Mi STAYS, AND THAT IS NOW A MEASUREMENT RATHER THAN A GUESS. katcher took the same
-      # allocator fix and went down to 128Mi; tracy cannot, and the difference is the workload.
-      # Measured on an isolated two-core box against this image, `--cpus=1`, a hundred writers
-      # sending ten-record batches:
+      # 256Mi STAYS, AND WHAT CHANGED IS THE REASON (M-137). The earlier note here said the resident
+      # set grows with what has been written. It does not: under a *fixed* ingest rate — 500 records
+      # a second on an isolated two-core box, `--cpus=1`, a read in every tenth request — the stock
+      # 0.3.0 was OOM-killed at 65 minutes, and the thing that grew was the write-ahead log, to
+      # 931 MB, while the database file stopped at 187 MB. SQLite's automatic checkpoint is PASSIVE:
+      # it cannot reset the log while any reader is active, and tracy is read while it is written.
+      # A log that big makes reads slow, slow reads mean more requests in flight at a rate that does
+      # not back off, more requests mean more threads, and every thread costs a malloc arena. That
+      # is the whole of the resident set: ten anonymous mappings of 6–12 MB in `smaps`.
       #
-      #   128Mi, 50 writers, 30 s   peak 55–69 MB   survived (three runs)
-      #   128Mi, 100 writers, 5 min                 KILLED, exit=137, 6 % of requests failed
-      #   192Mi, 100 writers, 5 min  peak 136 MB    survived
-      #   256Mi, 100 writers, 5 min  peak 120 MB    survived
-      #    32Mi, 50 writers, 30 s                   killed — the control that says the stand bites
+      # Which is why the number that matters most is not this limit but the size of the SQLite pool
+      # — `TRACY_DB_MAX_CONNECTIONS`, which the server defaults to 2 and this chart deliberately
+      # does not repeat, because a number in two places drifts in one of them. At
+      # ten connections the process is killed under 256Mi *and* under 128Mi; at two it ran past
+      # twice the death point on a database twice the size, with a third of the memory. The sweep in
+      # the server (`TRACY_WAL_CHECKPOINT_SECONDS`, `TRACY_WAL_MAX_BYTES`) is necessary and on its
+      # own not sufficient — measured, both ways round.
       #
-      # The short run at 128Mi passes and the long one dies, which is the whole point: under
-      # sustained ingest the resident set keeps climbing — 87, 96, 99, 103, 107, 112 MB across the
-      # five minutes at 256Mi — because the page cache and the WAL grow with what has been written,
-      # not with how many threads are serving. It had not plateaued when the run ended, so this
-      # number is sized for the load that was measured and **not** proven for a day of it: if a pod
-      # here is ever OOM-killed, that is what happened, and the answer is a longer measurement
-      # rather than a smaller limit (M-137).
+      # The image also carries `MALLOC_ARENA_MAX=2` (see server/Dockerfile): glibc counts the host's
+      # cores rather than the container's quota when it decides how many malloc arenas a process may
+      # grow, and the resident set is the sum of their high-water marks. Measured at 33 % less
+      # anonymous memory for the same bytes ingested.
+      #
+      # 128Mi is NOT enough for the load that was measured: with ten connections it dies at 11–13
+      # minutes, and what decides it is the working set, not the ingest rate — under that limit the
+      # page cache covers the database only up to about 60 MB.
       memory: "256Mi"
 
 # Ingest key for `POST /ingest`. The server refuses to start without one, so unlike the MCP

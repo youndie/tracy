@@ -60,7 +60,9 @@ class RetentionTest {
             val now = day + 40 * 86_400_000L
 
             val state =
-                Retention(db, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
+                Retention(db, walBytes = {
+                    0
+                }, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
                     .enforce()
 
             // DROP TABLE, not DELETE: constant time, no fragmentation, no VACUUM (research D6).
@@ -75,7 +77,9 @@ class RetentionTest {
             writeDay(db, 0, 1)
             val now = day + 100 * 86_400_000L
 
-            Retention(db, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
+            Retention(db, walBytes = {
+                0
+            }, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
                 .enforce()
 
             for (prefix in listOf("log_entry_", "span_", "entity_ref_")) {
@@ -92,11 +96,12 @@ class RetentionTest {
         runTest {
             val db = freshDb()
             repeat(4) { writeDay(db, it, (it + 1).toLong(), count = 200) }
-            val before = Retention(db, 30, 90, Long.MAX_VALUE, clock = { day }).state()
+            val before = Retention(db, { 0 }, 30, 90, Long.MAX_VALUE, clock = { day }).state()
 
             val state =
                 Retention(
                     db,
+                    walBytes = { 0 },
                     retentionDays = 30,
                     countsRetentionDays = 90,
                     maxBytes = before.databaseBytes / 2,
@@ -118,6 +123,7 @@ class RetentionTest {
             val state =
                 Retention(
                     db,
+                    walBytes = { 0 },
                     retentionDays = 30,
                     countsRetentionDays = 90,
                     maxBytes = 1,
@@ -142,7 +148,9 @@ class RetentionTest {
             )
             val now = day + 40 * 86_400_000L
 
-            Retention(db, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
+            Retention(db, walBytes = {
+                0
+            }, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
                 .enforce()
 
             // Bodies are gone, the frequency is not: counters are tiny and are wanted precisely
@@ -156,7 +164,7 @@ class RetentionTest {
             val db = freshDb()
             writeDay(db, 0, 1)
 
-            val state = Retention(db, 30, 90, 4L * 1024 * 1024 * 1024, clock = { day }).state()
+            val state = Retention(db, { 0 }, 30, 90, 4L * 1024 * 1024 * 1024, clock = { day }).state()
 
             assertEquals("20260801", state.oldestDay)
             assertTrue(state.databaseBytes > 0)
