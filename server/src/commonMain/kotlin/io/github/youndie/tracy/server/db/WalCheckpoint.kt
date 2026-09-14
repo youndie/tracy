@@ -5,6 +5,7 @@ import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import kotlinx.serialization.Serializable
 import okio.FileSystem
 import okio.Path.Companion.toPath
+import okio.SYSTEM
 
 /** What one forced checkpoint did, and how big the write-ahead log is afterwards. */
 @Serializable
