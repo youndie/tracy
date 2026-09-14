@@ -7,14 +7,25 @@ import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.youndie.tracy.server.db.dayKey
 import kotlinx.serialization.Serializable
 
+/**
+ * No defaults on the numbers, on purpose: `TracyJson` is built with `encodeDefaults = false`, so a
+ * field that happens to equal its default is left out of the response entirely — and "no log at
+ * all" would arrive as a missing key, indistinguishable from a version that does not report it.
+ */
 @Serializable
 public data class RetentionState(
     public val liveDays: List<String>,
     public val oldestDay: String? = null,
     public val databaseBytes: Long,
+    /**
+     * The write-ahead log, which [databaseBytes] does not include: it is `page_count * page_size`,
+     * and pages still in the log belong to neither number. M-137 watched a 931 MB log sit next to a
+     * 187 MB database and report nothing at all here.
+     */
+    public val walBytes: Long,
     public val maxBytes: Long,
     /** How many days were dropped to stay under the cap since the server started. */
-    public val evictedDays: Int = 0,
+    public val evictedDays: Int,
 )
 
 /**
@@ -26,6 +37,8 @@ public data class RetentionState(
  */
 public class Retention(
     private val db: ISQLite,
+    /** The size of the write-ahead log, which SQLite reports through neither pragma used here. */
+    private val walBytes: () -> Long,
     private val retentionDays: Int,
     private val countsRetentionDays: Int,
     private val maxBytes: Long,
@@ -47,6 +60,7 @@ public class Retention(
                 liveDays = days,
                 oldestDay = days.minOrNull(),
                 databaseBytes = databaseBytes(this),
+                walBytes = walBytes(),
                 maxBytes = maxBytes,
                 evictedDays = evicted,
             )

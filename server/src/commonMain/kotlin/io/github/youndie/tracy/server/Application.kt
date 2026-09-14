@@ -12,6 +12,7 @@ import io.github.youndie.kore.lifecycle.AnnounceNotReady
 import io.github.youndie.kore.lifecycle.ShutdownDeadlines
 import io.github.youndie.kore.lifecycle.ShutdownParticipant
 import io.github.youndie.kore.lifecycle.runUntilSignal
+import io.github.youndie.tracy.server.db.WalCheckpoint
 import io.github.youndie.tracy.server.db.migrateDb
 import io.github.youndie.tracy.server.ingest.ingestRoutes
 import io.github.youndie.tracy.server.mcp.installMcp
@@ -68,7 +69,7 @@ public fun main() {
     val config = ServerConfig.fromEnv()
 
     // Migrations run in here, before anything serves and before the startup gate opens.
-    val db = openDatabase(config.dbPath)
+    val db = openDatabase(config.dbPath, config.dbMaxConnections, config.dbIdleTimeoutSeconds)
     val probes = TracyProbes(db)
 
     val server =
@@ -151,7 +152,11 @@ private fun participant(
  * answer the first requests with errors, and the first requests are exactly the ones an agent
  * retries hardest.
  */
-public fun openDatabase(path: String): ISQLite {
+public fun openDatabase(
+    path: String,
+    maxConnections: Int = ServerConfig.DEFAULT_DB_MAX_CONNECTIONS,
+    idleTimeoutSeconds: Long? = null,
+): ISQLite {
     val dbPath = path.toPath()
     val fileSystem = FileSystem.SYSTEM
 
@@ -166,7 +171,8 @@ public fun openDatabase(path: String): ISQLite {
             options =
                 ConnectionPool.Options
                     .builder()
-                    .maxConnections(10)
+                    .maxConnections(maxConnections)
+                    .apply { idleTimeoutSeconds?.let { idleTimeout(it.seconds) } }
                     .build(),
         )
 
@@ -209,6 +215,56 @@ public fun Application.module(
                 "tracy started",
                 mapOf("retentionDays" to config.retentionDays.toString()),
             )
+        }
+    }
+
+    // The log sweep. Separate from retention and far more often: retention is about days of data
+    // and runs hourly, this is about a file that grows between one read and the next (see
+    // WalCheckpoint). Zero turns it off — for a test that wants SQLite's own behaviour, and for the
+    // day somebody has to answer "is this sweep the problem?" without building an image.
+    if (config.walCheckpointSeconds > 0) {
+        val wal = get<WalCheckpoint>()
+        launch {
+            var quietMillis = 0L
+            while (true) {
+                delay(WAL_POLL_MILLIS)
+                quietMillis += WAL_POLL_MILLIS
+                // Two triggers, and the size one is the reason this survives its own bad day: by
+                // the time the clock comes round, a log that is growing because reads are slow is
+                // already the thing making them slow. `walBytes` is one `stat`.
+                val overflowing = wal.walBytes() >= config.walMaxBytes
+                if (!overflowing && quietMillis < config.walCheckpointSeconds * 1000) continue
+                quietMillis = 0
+                val state =
+                    try {
+                        wal.checkpoint()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Throwable) {
+                        self?.log(
+                            Level.WARN,
+                            "Wal",
+                            "wal checkpoint failed",
+                            mapOf("failure" to (failure::class.simpleName ?: "unknown")),
+                        )
+                        null
+                    }
+                // Only the runs that could not reset the log are worth a line. A checkpoint that
+                // worked is the normal case sixty times an hour, and logging it would be tracy
+                // filling its own database with the news that it is keeping its database small.
+                if (state != null && state.busy) {
+                    self?.log(
+                        Level.WARN,
+                        "Wal",
+                        "wal checkpoint left frames behind",
+                        mapOf(
+                            "walBytes" to state.bytes.toString(),
+                            "framesInLog" to state.framesInLog.toString(),
+                            "framesCheckpointed" to state.framesCheckpointed.toString(),
+                        ),
+                    )
+                }
+            }
         }
     }
 
@@ -273,6 +329,9 @@ public fun Application.module(
         queryRoutes()
     }
 }
+
+/** How often the log is looked at. The sweep itself is far rarer — see the two triggers above. */
+private const val WAL_POLL_MILLIS: Long = 1000
 
 /** Hourly. Partitions are daily, so anything finer only re-checks the size cap. */
 private const val RETENTION_INTERVAL_MILLIS: Long = 60 * 60 * 1000

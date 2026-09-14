@@ -30,7 +30,12 @@ for probe in /health/startup /health/ready /health/live /health; do
     curl -fsS -o /dev/null "$base$probe" || fail "$probe did not answer 200"
 done
 curl -fsS "$base/version" | grep -q '^version: ' || fail "/version did not report a version"
-curl -fsS "$base/health/retention" | grep -q 'databaseBytes' || fail "/health/retention reported no state"
+retention=$(curl -fsS "$base/health/retention")
+printf '%s' "$retention" | grep -q 'databaseBytes' || fail "/health/retention reported no state"
+# `walBytes` is wired through Koin, and the wiring is the half a unit test cannot reach: the number
+# is computed from a file path that only the real container knows. M-137 is the reason it is
+# reported at all — a write-ahead log grew to 931 MB while every size tracy published stayed small.
+printf '%s' "$retention" | grep -q 'walBytes' || fail "/health/retention does not report the write-ahead log"
 
 now=$(date +%s)000
 since=$(( now - 3600000 ))

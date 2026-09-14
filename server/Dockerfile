@@ -22,7 +22,14 @@ COPY . .
 # for one thing, one of them calling a released image a snapshot. Read out of the file rather than
 # passed as a build argument so it cannot drift from the tag: `Publish server native` greps the
 # same line.
-RUN gradle :server:linkReleaseExecutableLinuxX64 --no-daemon --stacktrace \
+# The two cache mounts are what make a second build of a changed source tree minutes rather than
+# twenty: without them every build re-downloads the Kotlin/Native toolchain (~1.8 GB into
+# `~/.konan`) and every dependency, because `COPY . .` above invalidates this layer on any edit.
+# They change nothing about what ends up in the image — a cold builder (a hosted CI runner) simply
+# starts with both caches empty and behaves exactly as before.
+RUN --mount=type=cache,target=/root/.konan \
+    --mount=type=cache,target=/root/.gradle \
+    gradle :server:linkReleaseExecutableLinuxX64 --no-daemon --stacktrace \
     -PVERSION="$(grep '^SERVER_VERSION=' gradle.properties | cut -d'=' -f2)"
 
 # ---------- Stage 2 : runtime ----------

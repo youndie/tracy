@@ -3,6 +3,7 @@ package io.github.youndie.tracy.server
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.youndie.tracy.server.db.EntityKeyBudget
 import io.github.youndie.tracy.server.db.IngestRepository
+import io.github.youndie.tracy.server.db.WalCheckpoint
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
 import io.github.youndie.tracy.server.mcp.ToolFacade
 import io.github.youndie.tracy.server.query.EntityRepository
@@ -53,9 +54,12 @@ public fun serverModule(
         single { EntityRepository(db) }
         single { EntityTimelineUseCase(get()) }
 
+        single { WalCheckpoint(db, config.dbPath) }
+
         single {
             Retention(
                 db = db,
+                walBytes = get<WalCheckpoint>()::walBytes,
                 retentionDays = config.retentionDays,
                 countsRetentionDays = config.countsRetentionDays,
                 maxBytes = config.maxDbBytes,
