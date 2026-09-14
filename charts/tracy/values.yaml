@@ -13,7 +13,10 @@ server:
   # 0.3.0 AND NOT EARLIER: the chart above probes `/health/startup`, and an image without that
   # route fails the startup probe sixty times and is restarted. The chart and the image move
   # together or the install is a CrashLoop behind a healthy-looking deployment.
-  version: 0.3.0
+  #
+  # 0.3.1 is where the M-137 server starts: a two-connection pool, the log sweep, the arena cap.
+  # `0.3.0` on ghcr is the image that was measured dying at 65 minutes and has to keep meaning that.
+  version: 0.3.1
   resources:
     requests:
       cpu: "50m"
