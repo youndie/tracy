@@ -76,6 +76,14 @@ jobs:
             fi
           done
 
+      # A measured setting that can be deleted without anything failing is a setting that will be
+      # deleted. M-137 measured 33 % less anonymous memory with this cap, and the image is the only
+      # place it lives.
+      - name: The allocator cap survived the build
+        run: |
+          docker image inspect tracy:ci --format '{{json .Config.Env}}' | grep -q 'MALLOC_ARENA_MAX=2' \
+            || { echo "the image lost MALLOC_ARENA_MAX=2 (M-137)" >&2; exit 1; }
+
       # The container has no shell, so this is the only account of what went wrong.
       - name: What it said, if it did not
         if: failure()

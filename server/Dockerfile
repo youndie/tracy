@@ -67,6 +67,23 @@ COPY --from=build /usr/lib/x86_64-linux-gnu/gconv /usr/lib/x86_64-linux-gnu/gcon
 
 COPY --from=build /app/server/build/bin/linuxX64/releaseExecutable/server.kexe /app/server
 
+# WHY AN ALLOCATOR SETTING TRAVELS WITH THE IMAGE. glibc gives a thread its own malloc arena
+# whenever the one it wants is locked, up to eight arenas per core — and it counts the *host's*
+# cores, not the container's CPU quota, so a `--cpus=1` container on a 20-core runner may grow
+# arenas until the limit kills it. An arena only ever returns memory from its top, so the resident
+# set becomes the sum of every arena's high-water mark rather than the live heap: M-137 found 120 MB
+# of the 130 MB resident set sitting in ten anonymous mappings on 64 MB boundaries.
+#
+# Measured on this image, same load, same limit, identical bytes ingested: 33 % less anonymous
+# memory with the cap than without (74 → 49 MB at ten minutes, 82 → 54 MB at ten and a half). The
+# price is lock contention in `malloc`, which this workload does not pay because it waits on SQLite
+# and the disk, not on allocation — a different workload would have to re-measure.
+#
+# Here rather than in the chart because it is a property of running this binary under a memory
+# limit, not of one deployment: `docker run` of the image and the CI smoke get it too. A chart can
+# still override it.
+ENV MALLOC_ARENA_MAX=2
+
 EXPOSE 8080
 
 ENTRYPOINT ["/app/server"]
