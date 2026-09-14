@@ -20,8 +20,27 @@ server:
       memory: "64Mi"
     limits:
       cpu: "1"
-      # SQLite here is not a client of a database server — it *is* the database, and the page
-      # cache lives in this process. 64Mi is what katcher needs; tracy holds more.
+      # SQLite here is not a client of a database server — it *is* the database, and the page cache
+      # lives in this process.
+      #
+      # 256Mi STAYS, AND THAT IS NOW A MEASUREMENT RATHER THAN A GUESS. katcher took the same
+      # allocator fix and went down to 128Mi; tracy cannot, and the difference is the workload.
+      # Measured on an isolated two-core box against this image, `--cpus=1`, a hundred writers
+      # sending ten-record batches:
+      #
+      #   128Mi, 50 writers, 30 s   peak 55–69 MB   survived (three runs)
+      #   128Mi, 100 writers, 5 min                 KILLED, exit=137, 6 % of requests failed
+      #   192Mi, 100 writers, 5 min  peak 136 MB    survived
+      #   256Mi, 100 writers, 5 min  peak 120 MB    survived
+      #    32Mi, 50 writers, 30 s                   killed — the control that says the stand bites
+      #
+      # The short run at 128Mi passes and the long one dies, which is the whole point: under
+      # sustained ingest the resident set keeps climbing — 87, 96, 99, 103, 107, 112 MB across the
+      # five minutes at 256Mi — because the page cache and the WAL grow with what has been written,
+      # not with how many threads are serving. It had not plateaued when the run ended, so this
+      # number is sized for the load that was measured and **not** proven for a day of it: if a pod
+      # here is ever OOM-killed, that is what happened, and the answer is a longer measurement
+      # rather than a smaller limit (M-137).
       memory: "256Mi"
 
 # Ingest key for `POST /ingest`. The server refuses to start without one, so unlike the MCP
