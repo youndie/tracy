@@ -15,7 +15,15 @@ RUN apt-get update \
 WORKDIR /app
 COPY . .
 
-RUN gradle :server:linkReleaseExecutableLinuxX64 --no-daemon --stacktrace
+# `-PVERSION` FROM THE SAME LINE THE IMAGE TAG COMES FROM. Without it the build falls back to
+# `version` in gradle.properties, which is a `-SNAPSHOT` on purpose — a build with no version must
+# not be able to produce something that looks like a release — and the binary then reports
+# `0.3.0-SNAPSHOT` from `/version` while the tag on the image it sits in says `0.3.0`. Two numbers
+# for one thing, one of them calling a released image a snapshot. Read out of the file rather than
+# passed as a build argument so it cannot drift from the tag: `Publish server native` greps the
+# same line.
+RUN gradle :server:linkReleaseExecutableLinuxX64 --no-daemon --stacktrace \
+    -PVERSION="$(grep '^SERVER_VERSION=' gradle.properties | cut -d'=' -f2)"
 
 # ---------- Stage 2 : runtime ----------
 # NO BASE IMAGE. The binary is linked statically (the `staticLinuxX64` block in
