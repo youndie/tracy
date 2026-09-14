@@ -13,7 +13,10 @@ server:
   # 0.3.0 AND NOT EARLIER: the chart above probes `/health/startup`, and an image without that
   # route fails the startup probe sixty times and is restarted. The chart and the image move
   # together or the install is a CrashLoop behind a healthy-looking deployment.
-  version: 0.3.0
+  #
+  # 0.3.1 is where the M-137 server starts: a two-connection pool, the log sweep, the arena cap.
+  # `0.3.0` on ghcr is the image that was measured dying at 65 minutes and has to keep meaning that.
+  version: 0.3.1
   resources:
     requests:
       cpu: "50m"
@@ -45,6 +48,12 @@ server:
       # cores rather than the container's quota when it decides how many malloc arenas a process may
       # grow, and the resident set is the sum of their high-water marks. Measured at 33 % less
       # anonymous memory for the same bytes ingested.
+      #
+      # Confirmed by a ninety-minute run of exactly what 0.3.1 ships — 256Mi, a two-connection pool,
+      # the log swept by the minute and by size: no OOM, a 296 MB database (half as much again as
+      # the baseline held when it died), the log never past 16 MB, anonymous memory peaking at
+      # 141 MB. The drift is still there — threads 23 -> 61 and anon 33 -> 141 MB follow the size of
+      # the database — so this is a cliff pushed out rather than a plateau found.
       #
       # 128Mi is NOT enough for the load that was measured: with ten connections it dies at 11–13
       # minutes, and what decides it is the working set, not the ingest rate — under that limit the
