@@ -1,7 +1,8 @@
 [versions]
-# The shared build conventions. One number: every sborka plugin below takes its version from here.
-sborka = "0.4.0.57"
-kotlin = "2.4.10"
+# The shared build conventions. One number: every sborka plugin below takes its version from here,
+# and so does the compiler — the `wip` catalog this release publishes carries `kotlin`, which is why
+# there is no Kotlin version in this file to drift from the rest of the portfolio.
+sborka = "0.4.0.86"
 # kore: the process lifecycle of a server binary — ordered shutdown, three probes, /version. One
 # number for the two libraries and the Gradle plugin that generates the build identity: they are
 # published together, and a plugin from one version with a library from another would compile and
@@ -44,6 +45,4 @@ sborkaKmp = { id = "io.github.youndie.sborka.kmp", version.ref = "sborka" }
 sborkaLint = { id = "io.github.youndie.sborka.lint", version.ref = "sborka" }
 sborkaParity = { id = "io.github.youndie.sborka.parity", version.ref = "sborka" }
 sborkaPublish = { id = "io.github.youndie.sborka.publish", version.ref = "sborka" }
-kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
-pluginSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktlintPlugin = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }

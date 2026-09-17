@@ -2,8 +2,8 @@ plugins {
     // Declared here with `apply false` so the versions are named once and the modules ask by bare id.
     // Asking for a version in a module as well is refused when the root applies a plugin from the
     // same jar: "plugin is already on the classpath with an unknown version".
-    alias(libs.plugins.kotlinMultiplatform) apply false
-    alias(libs.plugins.pluginSerialization) apply false
+    alias(wip.plugins.kotlinMultiplatform) apply false
+    alias(wip.plugins.kotlinSerialization) apply false
     alias(libs.plugins.sborkaKmp) apply false
     alias(libs.plugins.sborkaLint) apply false
     alias(libs.plugins.sborkaPublish) apply false
