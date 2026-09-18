@@ -17,6 +17,17 @@ class ServerConfig(
     /** One retention, not one per level: two ages in one table cannot both be a DROP (research D6). */
     val retentionDays: Int = 30,
     val countsRetentionDays: Int = 90,
+    /**
+     * How long a batch marker outlives the batch it marks.
+     *
+     * Deliberately not tied to [retentionDays]: a marker answers "have I already stored this
+     * batch", and that question dies with the agent's last retry, not with the records. Two days is
+     * chosen against the retry that can arrive latest — an agent holding a batch it never saw a
+     * `202` for keeps asking every minute for as long as the server is unreachable, so the horizon
+     * has to cover an outage, and a couple of days covers one nobody slept through. Below that
+     * window a deleted marker turns a lawful retry into duplicated records.
+     */
+    val markersRetentionDays: Int = 2,
     val maxDbBytes: Long = 4L * 1024 * 1024 * 1024,
     /** MCP is not installed at all when this is null: closed by default, not open. */
     val mcpToken: String? = null,
@@ -95,6 +106,7 @@ class ServerConfig(
                 suppressedTtlDays = read("TRACY_SUPPRESSED_TTL_DAYS")?.toLongOrNull() ?: 14,
                 retentionDays = read("TRACY_RETENTION_DAYS")?.toIntOrNull() ?: 30,
                 countsRetentionDays = read("TRACY_RETENTION_COUNTS_DAYS")?.toIntOrNull() ?: 90,
+                markersRetentionDays = read("TRACY_RETENTION_MARKERS_DAYS")?.toIntOrNull() ?: 2,
                 maxDbBytes = read("TRACY_DB_MAX_BYTES")?.toLongOrNull() ?: (4L * 1024 * 1024 * 1024),
                 mcpToken = read("TRACY_MCP_TOKEN")?.takeIf { it.isNotBlank() },
                 mcpAllowedHosts =
