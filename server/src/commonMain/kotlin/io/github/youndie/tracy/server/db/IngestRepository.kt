@@ -49,10 +49,19 @@ public data class WriteResult(
  * never a moment where the span of a request exists but its records do not. It is also what makes
  * `202` mean what the protocol says it means — the response is sent after the commit, so an agent
  * that lets go of a batch is letting go of something that is stored.
+ *
+ * Which is why every statement here goes through [executeOrThrow]. sqlx4k answers with a `Result`
+ * and never throws, so a discarded one let the transaction run on to the batch marker and commit:
+ * a write that never happened was answered with `202`, and marked stored, so the agent dropped the
+ * records and a re-send would have been refused as a duplicate.
  */
 public class IngestRepository(
     private val db: ISQLite,
     private val dictionaries: Dictionaries = Dictionaries(),
+    /**
+     * Defaulted for tests only. The server passes the one instance eviction also holds: a second
+     * cache would keep claiming that a day eviction has just dropped is still there.
+     */
     private val partitions: Partitions = Partitions(),
     private val budget: EntityKeyBudget? = null,
     private val clock: () -> Long,
@@ -94,7 +103,7 @@ public class IngestRepository(
         producedBytes: Long,
         dropped: Long,
     ) {
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO service_produced (service_id, minute, bytes, dropped)
@@ -118,7 +127,7 @@ public class IngestRepository(
         seq: Long,
         now: Long,
     ) {
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create("INSERT INTO ingest_batch (instance_id, run, seq, received_at) VALUES (:i, :r, :s, :t)")
                 .apply {
@@ -158,7 +167,7 @@ public class IngestRepository(
         executor: QueryExecutor,
         instanceId: Long,
     ) {
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create("UPDATE instance SET duplicate_batches = duplicate_batches + 1 WHERE id = :id")
                 .apply { bind("id", instanceId) },
@@ -185,7 +194,7 @@ public class IngestRepository(
         val exceptionClassId =
             record.exception?.className?.let { dictionaries.exceptionClassId(executor, it) }
 
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO log_entry_$day
@@ -245,7 +254,7 @@ public class IngestRepository(
         val day = dayKey(span.ts)
         partitions.ensure(executor, day)
 
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO span_$day
@@ -293,7 +302,7 @@ public class IngestRepository(
             if (budget.isSuppressed(serviceId, ref.key)) return
         }
 
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO entity_ref_$day
@@ -323,7 +332,7 @@ public class IngestRepository(
         counter: TemplateCount,
     ) {
         val templateId = dictionaries.templateId(executor, counter.template)
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO template_count (service_id, template_id, level, release, minute, count)

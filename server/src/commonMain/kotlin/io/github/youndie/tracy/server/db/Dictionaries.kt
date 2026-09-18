@@ -28,7 +28,7 @@ public class Dictionaries {
         now: Long,
     ): Long {
         services[name]?.let { id ->
-            executor.execute(
+            executor.executeOrThrow(
                 Statement
                     .create("UPDATE service SET last_seen = :now WHERE id = :id")
                     .apply {
@@ -38,7 +38,7 @@ public class Dictionaries {
             )
             return id
         }
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO service (name, first_seen, last_seen) VALUES (:name, :now, :now)
@@ -63,7 +63,7 @@ public class Dictionaries {
     ): Long {
         val cached = instances[serviceId to name]
         if (cached == null) {
-            executor.execute(
+            executor.executeOrThrow(
                 Statement
                     .create(
                         """INSERT INTO instance (service_id, name, last_seen, clock_skew_ms, record_age_ms)
@@ -88,7 +88,7 @@ public class Dictionaries {
             instances[serviceId to name] = id
             return id
         }
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     "UPDATE instance SET last_seen = :now, clock_skew_ms = :skew, record_age_ms = :age WHERE id = :id",
@@ -128,9 +128,9 @@ public class Dictionaries {
             executor
                 .fetchAll(
                     Statement.create("SELECT id FROM log_template WHERE text = :text").apply { bind("text", text) },
-                ).getOrNull()
-                ?.rows
-                ?.getOrNull(0)
+                ).getOrThrow()
+                .rows
+                .getOrNull(0)
                 ?.get(0)
                 ?.asLong()
 
@@ -139,11 +139,11 @@ public class Dictionaries {
             return existing
         }
 
-        executor.execute(
+        executor.executeOrThrow(
             Statement.create("INSERT INTO log_template (text) VALUES (:text)").apply { bind("text", text) },
         )
         val id = selectId(executor, "SELECT id FROM log_template WHERE text = :text", "text", text)
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create("INSERT INTO template_fts (rowid, text) VALUES (:id, :text)")
                 .apply {
@@ -162,7 +162,7 @@ public class Dictionaries {
         name: String,
     ): Long {
         cache[name]?.let { return it }
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create("INSERT INTO $table (name) VALUES (:name) ON CONFLICT(name) DO NOTHING")
                 .apply { bind("name", name) },

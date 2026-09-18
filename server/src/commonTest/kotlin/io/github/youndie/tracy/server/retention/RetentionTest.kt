@@ -4,6 +4,7 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
+import io.github.youndie.tracy.server.db.Partitions
 import io.github.youndie.tracy.server.db.dayKey
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
 import io.github.youndie.tracy.server.openDatabase
@@ -34,9 +35,10 @@ class RetentionTest {
         offsetDays: Int,
         seq: Long,
         count: Int = 5,
+        partitions: Partitions = Partitions(),
     ) {
         val ts = day + offsetDays * 86_400_000L
-        IngestBatchUseCase(IngestRepository(db, clock = { ts }), clock = { ts })(
+        IngestBatchUseCase(IngestRepository(db, partitions = partitions, clock = { ts }), clock = { ts })(
             BatchHeader("orders-api", "pod-a", "1.0", seq),
             (1..count).map {
                 LogRecord(
@@ -60,7 +62,7 @@ class RetentionTest {
             val now = day + 40 * 86_400_000L
 
             val state =
-                Retention(db, walBytes = {
+                Retention(db, Partitions(), walBytes = {
                     0
                 }, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
                     .enforce()
@@ -77,7 +79,7 @@ class RetentionTest {
             writeDay(db, 0, 1)
             val now = day + 100 * 86_400_000L
 
-            Retention(db, walBytes = {
+            Retention(db, Partitions(), walBytes = {
                 0
             }, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
                 .enforce()
@@ -96,11 +98,12 @@ class RetentionTest {
         runTest {
             val db = freshDb()
             repeat(4) { writeDay(db, it, (it + 1).toLong(), count = 200) }
-            val before = Retention(db, { 0 }, 30, 90, Long.MAX_VALUE, clock = { day }).state()
+            val before = Retention(db, Partitions(), { 0 }, 30, 90, Long.MAX_VALUE, clock = { day }).state()
 
             val state =
                 Retention(
                     db,
+                    Partitions(),
                     walBytes = { 0 },
                     retentionDays = 30,
                     countsRetentionDays = 90,
@@ -123,6 +126,7 @@ class RetentionTest {
             val state =
                 Retention(
                     db,
+                    Partitions(),
                     walBytes = { 0 },
                     retentionDays = 30,
                     countsRetentionDays = 90,
@@ -148,7 +152,7 @@ class RetentionTest {
             )
             val now = day + 40 * 86_400_000L
 
-            Retention(db, walBytes = {
+            Retention(db, Partitions(), walBytes = {
                 0
             }, retentionDays = 30, countsRetentionDays = 90, maxBytes = Long.MAX_VALUE, clock = { now })
                 .enforce()
@@ -164,10 +168,45 @@ class RetentionTest {
             val db = freshDb()
             writeDay(db, 0, 1)
 
-            val state = Retention(db, { 0 }, 30, 90, 4L * 1024 * 1024 * 1024, clock = { day }).state()
+            val state = Retention(db, Partitions(), { 0 }, 30, 90, 4L * 1024 * 1024 * 1024, clock = { day }).state()
 
             assertEquals("20260801", state.oldestDay)
             assertTrue(state.databaseBytes > 0)
             assertEquals(4L * 1024 * 1024 * 1024, state.maxBytes)
+        }
+
+    @Test
+    fun `a day dropped by retention is created again for a late record`() =
+        runTest {
+            val db = freshDb()
+            // One cache, the way the container wires it: the write path and eviction share it.
+            val partitions = Partitions()
+            writeDay(db, 0, 1, partitions = partitions)
+            writeDay(db, 40, 2, partitions = partitions)
+            val now = day + 40 * 86_400_000L
+
+            Retention(db, partitions, { 0 }, 30, 90, Long.MAX_VALUE, clock = { now }).enforce()
+
+            // A record for the dropped day arrives late — a retry across midnight, a backlog after
+            // an outage, a clock that runs behind. It has to recreate the partition, not be
+            // written into a table that no longer exists.
+            writeDay(db, 0, 3, partitions = partitions)
+
+            assertEquals(5, db.scalar("SELECT count(*) FROM log_entry_20260801"))
+        }
+
+    @Test
+    fun `eviction forgets the day it dropped`() =
+        runTest {
+            val db = freshDb()
+            val partitions = Partitions()
+            writeDay(db, 0, 1, partitions = partitions)
+            val now = day + 40 * 86_400_000L
+
+            Retention(db, partitions, { 0 }, 30, 90, Long.MAX_VALUE, clock = { now }).enforce()
+
+            // The cache is the thing that decides whether the `CREATE TABLE` runs again, so a day
+            // left in it is a day whose every later write goes nowhere.
+            assertTrue("20260801" !in partitions.knownDays(), "the dropped day is still cached as created")
         }
 }
