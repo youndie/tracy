@@ -97,8 +97,17 @@ class RetentionTest {
     fun `the size cap evicts the oldest day`() =
         runTest {
             val db = freshDb()
-            repeat(4) { writeDay(db, it, (it + 1).toLong(), count = 200) }
-            val before = Retention(db, Partitions(), { 0 }, 30, 90, Long.MAX_VALUE, clock = { day }).state()
+            repeat(2) { writeDay(db, it, (it + 1).toLong(), count = 200) }
+
+            // The cap is measured, not guessed: exactly what two days occupy, plus a page of slack
+            // for the shared tables. Two of the four days have to go to get back under it — and,
+            // just as importantly, only two.
+            val twoDays =
+                Retention(db, Partitions(), { 0 }, 30, 90, Long.MAX_VALUE, clock = { day })
+                    .state()
+                    .usedBytes + 8192
+
+            repeat(2) { writeDay(db, it + 2, (it + 3).toLong(), count = 200) }
 
             val state =
                 Retention(
@@ -107,14 +116,20 @@ class RetentionTest {
                     walBytes = { 0 },
                     retentionDays = 30,
                     countsRetentionDays = 90,
-                    maxBytes = before.databaseBytes / 2,
+                    maxBytes = twoDays,
                     clock = { day },
                 ).enforce()
 
             // A collector that filled the node's disk is an outage it caused itself: the oldest
             // day goes rather than the newest write being refused.
-            assertTrue(state.evictedDays > 0, "nothing was evicted")
-            assertTrue(state.liveDays.size < 4)
+            //
+            // Counted, and not "fewer than before". `evictedDays > 0 && liveDays.size < 4` is what
+            // this test used to assert, and that passes just as happily when the sweep has taken
+            // the database down to a single day — which is what it did, every hour, once the file
+            // crossed the cap.
+            assertEquals(2, state.evictedDays)
+            assertEquals(listOf("20260803", "20260804"), state.liveDays)
+            assertTrue(state.usedBytes <= state.maxBytes, "still over the cap after evicting")
         }
 
     @Test
@@ -208,5 +223,23 @@ class RetentionTest {
             // The cache is the thing that decides whether the `CREATE TABLE` runs again, so a day
             // left in it is a day whose every later write goes nowhere.
             assertTrue("20260801" !in partitions.knownDays(), "the dropped day is still cached as created")
+        }
+
+    @Test
+    fun `the cap counts what is used rather than the file it sits in`() =
+        runTest {
+            val db = freshDb()
+            repeat(3) { writeDay(db, it, (it + 1).toLong(), count = 200) }
+            val before = Retention(db, Partitions(), { 0 }, 30, 90, Long.MAX_VALUE, clock = { day }).state()
+
+            val state =
+                Retention(db, Partitions(), { 0 }, 30, 90, before.usedBytes * 2 / 3, clock = { day }).enforce()
+
+            // `DROP TABLE` gives pages back to SQLite, not to the filesystem: the file keeps its
+            // high-water mark and the next writes reuse the free list. So the two numbers have to
+            // part company here — and the one the cap reads is the one the drop moves.
+            assertTrue(state.usedBytes < state.databaseBytes, "the freed pages are counted as used")
+            assertEquals(before.databaseBytes, state.databaseBytes)
+            assertTrue(state.usedBytes <= state.maxBytes)
         }
 }
