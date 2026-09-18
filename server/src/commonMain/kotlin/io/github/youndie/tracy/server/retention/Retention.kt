@@ -4,7 +4,9 @@ import io.github.smyrgeorge.sqlx4k.Statement
 import io.github.smyrgeorge.sqlx4k.impl.coroutines.TransactionContext
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
+import io.github.youndie.tracy.server.db.Partitions
 import io.github.youndie.tracy.server.db.dayKey
+import io.github.youndie.tracy.server.db.executeOrThrow
 import kotlinx.serialization.Serializable
 
 /**
@@ -37,6 +39,12 @@ public data class RetentionState(
  */
 public class Retention(
     private val db: ISQLite,
+    /**
+     * The same instance the write path uses, and it has to be the same one: eviction drops a day's
+     * tables, and a cache that still believes they exist skips the `CREATE TABLE` for every late
+     * record that lands in that day (see [Partitions.drop]).
+     */
+    private val partitions: Partitions,
     /** The size of the write-ahead log, which SQLite reports through neither pragma used here. */
     private val walBytes: () -> Long,
     private val retentionDays: Int,
@@ -76,7 +84,7 @@ public class Retention(
     private suspend fun dropCountsOlderThan(days: Int) {
         val cutoff = clock() - days * 86_400_000L
         TransactionContext.withCurrent(db) {
-            execute(
+            executeOrThrow(
                 Statement
                     .create("DELETE FROM template_count WHERE minute < :cutoff")
                     .apply { bind("cutoff", cutoff) },
@@ -115,11 +123,10 @@ public class Retention(
         executor: TransactionContext,
         day: String,
     ) {
-        // References may outlive bodies, but not the other way round: dropping a day takes all
-        // three tables so nothing is left pointing at a table that no longer exists.
-        listOf("log_entry_$day", "span_$day", "entity_ref_$day").forEach {
-            executor.execute("DROP TABLE IF EXISTS $it")
-        }
+        // References may outlive bodies, but not the other way round: dropping a day takes every
+        // table the day owns, so nothing is left pointing at a table that no longer exists. Which
+        // tables those are is [Partitions]' business, and so is forgetting the day afterwards.
+        partitions.drop(executor, day)
     }
 
     private suspend fun databaseBytes(executor: TransactionContext): Long {

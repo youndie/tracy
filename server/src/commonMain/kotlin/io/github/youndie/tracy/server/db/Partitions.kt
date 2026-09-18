@@ -41,11 +41,26 @@ public class Partitions {
         day: String,
     ) {
         if (day in known) return
-        partitionDdl(day).forEach { executor.execute(it) }
+        // Remembered only after the DDL is known to have worked. A day cached on a failed
+        // `CREATE TABLE` is a day whose every write goes to a table that does not exist, for as
+        // long as the process lives.
+        partitionDdl(day).forEach { executor.executeOrThrow(it) }
         known += day
     }
 
-    public fun forget(day: String) {
+    /**
+     * Drops a day and forgets it in the same breath.
+     *
+     * Eviction used to live in `Retention` and this cache knew nothing about it, so a dropped day
+     * stayed "created" for the rest of the process: [ensure] skipped the DDL, and every late
+     * record for that day — a retry across midnight, a backlog after an outage, a skewed clock —
+     * was inserted into a table that no longer existed.
+     */
+    public suspend fun drop(
+        executor: QueryExecutor,
+        day: String,
+    ) {
+        partitionTables(day).forEach { executor.executeOrThrow("DROP TABLE IF EXISTS $it") }
         known -= day
     }
 

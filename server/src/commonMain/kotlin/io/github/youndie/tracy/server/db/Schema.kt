@@ -66,7 +66,8 @@ internal val migrationV1: List<String> =
 );""",
         """CREATE INDEX template_count_minute ON template_count (minute);""",
         // Idempotency by (instance, seq): a batch redelivered after a timeout must not double
-        // anything, and counters are summed on write so they would double loudest.
+        // anything, and counters are summed on write so they would double loudest. The key gains
+        // the agent's run in V4 and this primary key is replaced in V5 — see [migrationV5].
         """CREATE TABLE ingest_batch (
     instance_id INTEGER NOT NULL REFERENCES instance(id),
     seq INTEGER NOT NULL,
@@ -133,7 +134,47 @@ internal val migrationV4: List<String> =
         """ALTER TABLE instance ADD COLUMN duplicate_batches INTEGER NOT NULL DEFAULT 0;""",
     )
 
-internal val allMigrations: List<List<String>> = listOf(migrationV1, migrationV2, migrationV3, migrationV4)
+/**
+ * Finishes M-111: the idempotency key becomes the primary key instead of an index beside one.
+ *
+ * V4 added `run` to the key with a unique index and left `PRIMARY KEY (instance_id, seq)` where it
+ * was — SQLite cannot drop a primary key, and nothing failed loudly enough to say so. A second pod
+ * generation under the same instance name restarts `seq` at zero, so its marker collided with the
+ * old key on every batch. The insert failed, its `Result` was discarded, and the transaction
+ * committed the records without the marker that makes them idempotent: the repeat of such a batch
+ * would have been written twice, and the very key that exists to prevent doubling was the thing
+ * not being stored. Found by making the write path throw, not by reading the schema.
+ *
+ * Table rebuild rather than `ALTER`: dropping a primary key is not something SQLite offers.
+ */
+internal val migrationV5: List<String> =
+    listOf(
+        """CREATE TABLE ingest_batch_keyed (
+    instance_id INTEGER NOT NULL REFERENCES instance(id),
+    run TEXT NOT NULL DEFAULT '',
+    seq INTEGER NOT NULL,
+    received_at INTEGER NOT NULL,
+    PRIMARY KEY (instance_id, run, seq)
+);""",
+        """INSERT OR IGNORE INTO ingest_batch_keyed (instance_id, run, seq, received_at)
+    SELECT instance_id, run, seq, received_at FROM ingest_batch;""",
+        """DROP TABLE ingest_batch;""",
+        """ALTER TABLE ingest_batch_keyed RENAME TO ingest_batch;""",
+        // Recreated because it went with the old table. Retention reads it to age markers out.
+        """CREATE INDEX ingest_batch_received ON ingest_batch (received_at);""",
+    )
+
+internal val allMigrations: List<List<String>> =
+    listOf(migrationV1, migrationV2, migrationV3, migrationV4, migrationV5)
+
+/**
+ * The tables one day owns, and the only list of them.
+ *
+ * Creation and eviction read the same names: a fourth per-day table added to [partitionDdl] and
+ * forgotten in the eviction would be created for every day and dropped for none, and nothing would
+ * say so — the database would simply keep growing under a cap that reports itself satisfied.
+ */
+internal fun partitionTables(day: String): List<String> = listOf("log_entry_$day", "span_$day", "entity_ref_$day")
 
 /**
  * Daily partitions. Only at this granularity do both retention and the size cap reduce to
