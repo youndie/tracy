@@ -40,6 +40,15 @@ public data class RetentionState(
     public val maxBytes: Long,
     /** How many days were dropped to stay under the cap since the server started. */
     public val evictedDays: Int,
+    /**
+     * Batch markers swept since the server started.
+     *
+     * Reported rather than counted live: `ingest_batch` is the one table a `count(*)` would have to
+     * walk an index for, and this is a health endpoint. The number is here because the growth it
+     * describes was invisible for thirty-seven days — on the stand the table and its two indexes had
+     * reached 166 MB of a 654 MB file, against 6 MB for the largest day of logs.
+     */
+    public val markersDropped: Long,
 )
 
 /**
@@ -61,14 +70,17 @@ public class Retention(
     private val walBytes: () -> Long,
     private val retentionDays: Int,
     private val countsRetentionDays: Int,
+    private val markersRetentionDays: Int,
     private val maxBytes: Long,
     private val clock: () -> Long,
 ) {
     private var evicted = 0
+    private var markersSwept = 0L
 
     public suspend fun enforce(): RetentionState {
         dropOlderThan(retentionDays)
         dropCountsOlderThan(countsRetentionDays)
+        dropBatchMarkersOlderThan(markersRetentionDays)
         evictUntilUnderCap()
         return state()
     }
@@ -84,6 +96,7 @@ public class Retention(
                 walBytes = walBytes(),
                 maxBytes = maxBytes,
                 evictedDays = evicted,
+                markersDropped = markersSwept,
             )
         }
 
@@ -102,6 +115,42 @@ public class Retention(
                     .create("DELETE FROM template_count WHERE minute < :cutoff")
                     .apply { bind("cutoff", cutoff) },
             )
+        }
+    }
+
+    /**
+     * Sweeps the idempotency markers, which nothing swept before.
+     *
+     * `ingest_batch` is not a daily partition, so eviction never touched it, and one row per
+     * accepted batch accumulates for as long as the volume lives: measured on the stand at
+     * 1 891 722 rows — 166 MB with its two indexes, a third of everything the database used, of
+     * which 91% were older than two days. `received_at` was written on every batch and read by
+     * nothing; the index over it has been paid for since V1 and is what this finally uses.
+     *
+     * **In chunks, each its own transaction.** The catch-up delete is a million rows with two
+     * indexes to maintain, and a single statement would hold the write lock for all of it and put
+     * the whole change in one write-ahead log entry that cannot be checkpointed until it commits —
+     * which is the shape M-137 was killed by. A chunk bounds both.
+     */
+    private suspend fun dropBatchMarkersOlderThan(days: Int) {
+        val cutoff = clock() - days * 86_400_000L
+        while (true) {
+            val deleted =
+                TransactionContext.withCurrent(db) {
+                    executeOrThrow(
+                        Statement
+                            .create(
+                                """DELETE FROM ingest_batch WHERE rowid IN (
+                                       SELECT rowid FROM ingest_batch WHERE received_at < :cutoff LIMIT :limit
+                                   )""",
+                            ).apply {
+                                bind("cutoff", cutoff)
+                                bind("limit", MARKER_SWEEP_CHUNK)
+                            },
+                    )
+                }
+            markersSwept += deleted
+            if (deleted < MARKER_SWEEP_CHUNK) return
         }
     }
 
@@ -153,6 +202,14 @@ public class Retention(
     /** The file: free pages included, because they are in it whether or not anything uses them. */
     private suspend fun databaseBytes(executor: TransactionContext): Long =
         executor.pragma("page_count") * executor.pragma("page_size")
+
+    private companion object {
+        /**
+         * Rows per delete. Small enough that the lock and the log entry stay short, large enough
+         * that a million-row catch-up is a couple of hundred statements rather than a thousand.
+         */
+        const val MARKER_SWEEP_CHUNK = 10_000
+    }
 
     private suspend fun TransactionContext.pragma(name: String): Long =
         fetchAll("PRAGMA $name;")

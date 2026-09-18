@@ -65,6 +65,7 @@ public fun serverModule(
                 walBytes = get<WalCheckpoint>()::walBytes,
                 retentionDays = config.retentionDays,
                 countsRetentionDays = config.countsRetentionDays,
+                markersRetentionDays = config.markersRetentionDays,
                 maxBytes = config.maxDbBytes,
                 clock = { currentTimeMillis() },
             )
