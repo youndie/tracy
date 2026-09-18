@@ -1,6 +1,7 @@
 package io.github.youndie.tracy.agent
 
 import io.github.youndie.tracy.wire.BatchLine
+import io.github.youndie.tracy.wire.NdJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -29,7 +30,11 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  *   anything weaker means the records still exist only here. The same batch is retried before
  *   anything new is drained, which also keeps records in order;
  * - **a rejection drops the batch.** `400`/`401`/`413` will not improve on the next attempt, and
- *   an agent that retries them forever stops sending everything else.
+ *   an agent that retries them forever stops sending everything else;
+ * - **the batch is cut to size here, by encoding it.** The buffer bounds itself with an estimate,
+ *   on purpose — encoding on the caller's thread is what risk 1 forbids — but the server checks the
+ *   body it receives. This is the one place that can measure what the server will measure, and a
+ *   `413` under the rule above is a whole batch lost with no way to ask for it again.
  */
 @OptIn(ExperimentalAtomicApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 public class TracyDelivery(
@@ -56,6 +61,15 @@ public class TracyDelivery(
     public var rejected: Int = 0
         private set
     public var malformed: Int = 0
+        private set
+
+    /**
+     * Records too large to fit a batch on their own — a stack trace of a megabyte. Counted apart
+     * from [rejected] because this is the only loss the agent cannot split its way out of, and the
+     * number is the difference between "the server refused us" and "we produced something that
+     * cannot be sent".
+     */
+    public var oversized: Int = 0
         private set
 
     /**
@@ -123,24 +137,41 @@ public class TracyDelivery(
      * the loop's own timer measures the timer.
      */
     internal suspend fun flushOnce(): SendResult? {
-        val batch: List<BatchLine>
+        val queued: List<BatchLine>
         val counters: BufferCounters
 
         if (pending.isNotEmpty()) {
-            batch = pending
+            queued = pending
             counters = pendingCounters
         } else {
-            batch = agent.drainBatch()
-            if (batch.isEmpty()) return null
+            queued = agent.drainBatch()
+            if (queued.isEmpty()) return null
             // Taken with the batch, not per attempt: counters reset when read, so reading them
             // again on a retry would report the produced bytes of a batch that was never new.
             counters = agent.counters()
         }
 
+        // The drain bounded the batch by `RecordBuffer.estimateBytes`, which exists to bound memory
+        // without encoding on the caller's thread, and undercounts the wire by a quarter to a half
+        // — `ix`, `r` and the exception class are not in it at all, and `String.length` counts
+        // UTF-16 units where the body is UTF-8. The server measures the body. With both limits at
+        // 1 MiB by default, that difference is a `413`, which the protocol says not to retry, so a
+        // full batch was discarded whole — worst exactly while working off a backlog, where every
+        // batch is full.
+        val split = NdJson.splitByBytes(queued, config.maxBatchBytes)
+        val batch = split.batches.first()
+        val rest = split.batches.drop(1).flatten()
+
+        // The one loss that splitting cannot prevent: a single record larger than the limit. It is
+        // still sent — the server's own limit may be higher than ours — but it is counted here,
+        // because `rejected` would not say why it could not be delivered.
+        if (batch.size == 1 && NdJson.encodeLine(batch.first()).encodeToByteArray().size > config.maxBatchBytes) {
+            oversized++
+        }
+
         return when (val result = sender.send(batch, seq.fetchAndAdd(1), counters)) {
             is SendResult.Accepted -> {
-                pending = emptyList()
-                pendingCounters = BufferCounters(0, 0)
+                carryOver(rest)
                 malformed += result.malformed
                 agent.applySuppressed(result.suppressedKeys)
                 attempt = 0
@@ -148,7 +179,9 @@ public class TracyDelivery(
             }
 
             is SendResult.Retriable -> {
-                pending = batch
+                // The part that failed goes back at the front: records stay in order, and the
+                // batch the server never confirmed exists nowhere else.
+                pending = batch + rest
                 pendingCounters = counters
                 delay(backoff.delayFor(attempt))
                 attempt++
@@ -156,12 +189,26 @@ public class TracyDelivery(
             }
 
             is SendResult.Rejected -> {
-                pending = emptyList()
-                pendingCounters = BufferCounters(0, 0)
+                carryOver(rest)
                 rejected += batch.size
                 attempt = 0
                 result
             }
         }
+    }
+
+    /**
+     * Keeps what the split left over for the next cycle, and asks for that cycle now.
+     *
+     * Without the wake a backlog would leave at one batch per `flushInterval`, which is how it
+     * behaved when a drain produced exactly one batch; the difference is that the leftovers are
+     * already out of the buffer, so waiting a second per part delays records that are no longer
+     * bounded by anything.
+     */
+    private fun carryOver(rest: List<BatchLine>) {
+        pending = rest
+        // Already sent with the first part, and they reset when read.
+        pendingCounters = BufferCounters(0, 0)
+        if (rest.isNotEmpty()) requestFlush()
     }
 }

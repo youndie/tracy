@@ -84,6 +84,12 @@ public class RecordBuffer(
         /**
          * Cheap approximation of the encoded size. Exactness is not the point — bounding memory
          * without touching the serializer on the caller's thread is.
+         *
+         * **It undercounts the wire, and nothing here may be sized by it.** `ix`, `r` and the
+         * exception class are not counted at all, and `String.length` is UTF-16 units against a
+         * UTF-8 body: measured at 1.26x for an ordinary record, 1.45x with indexed and redacted
+         * names, 1.50x for a message in Cyrillic. The batch that goes on the wire is cut to size by
+         * [TracyDelivery], which encodes it.
          */
         public fun estimateBytes(line: BatchLine): Int =
             when (line) {
