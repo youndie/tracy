@@ -20,6 +20,18 @@ public data class RetentionState(
     public val oldestDay: String? = null,
     public val databaseBytes: Long,
     /**
+     * What is actually occupied inside the file, `(page_count - freelist_count) * page_size`, and
+     * the number the size cap is compared against.
+     *
+     * `DROP TABLE` frees pages into SQLite's free list; without `auto_vacuum` the file keeps them
+     * and [databaseBytes] does not move. Comparing the cap against the file therefore made the
+     * condition unsatisfiable, and eviction dropped day after day until one was left — every time
+     * it ran. Freed pages are reused by the next writes, so bounding what is used is what stops the
+     * file growing; the file itself keeps its high-water mark, which is the standing price of
+     * `DROP TABLE` over `VACUUM` (research D6).
+     */
+    public val usedBytes: Long,
+    /**
      * The write-ahead log, which [databaseBytes] does not include: it is `page_count * page_size`,
      * and pages still in the log belong to neither number. M-137 watched a 931 MB log sit next to a
      * 187 MB database and report nothing at all here.
@@ -68,6 +80,7 @@ public class Retention(
                 liveDays = days,
                 oldestDay = days.minOrNull(),
                 databaseBytes = databaseBytes(this),
+                usedBytes = usedBytes(this),
                 walBytes = walBytes(),
                 maxBytes = maxBytes,
                 evictedDays = evicted,
@@ -98,16 +111,21 @@ public class Retention(
      */
     private suspend fun evictUntilUnderCap() {
         while (true) {
-            val over =
+            val freedSomething =
                 TransactionContext.withCurrent(db) {
                     val days = liveDays(this)
                     if (days.size <= 1) return@withCurrent false
-                    if (databaseBytes(this) <= maxBytes) return@withCurrent false
+                    val before = usedBytes(this)
+                    if (before <= maxBytes) return@withCurrent false
                     dropDay(this, days.first())
                     evicted++
-                    true
+                    // A drop that frees nothing means the number being compared is not the one the
+                    // drop moves, and dropping the next day cannot help either. This loop emptied
+                    // the database exactly that way: it compared `page_count`, which a `DROP TABLE`
+                    // never lowers, so the condition stayed true until a single day was left.
+                    usedBytes(this) < before
                 }
-            if (!over) return
+            if (!freedSomething) return
         }
     }
 
@@ -129,23 +147,18 @@ public class Retention(
         partitions.drop(executor, day)
     }
 
-    private suspend fun databaseBytes(executor: TransactionContext): Long {
-        val pageCount =
-            executor
-                .fetchAll("PRAGMA page_count;")
-                .getOrThrow()
-                .rows
-                .first()
-                .get(0)
-                .asLong()
-        val pageSize =
-            executor
-                .fetchAll("PRAGMA page_size;")
-                .getOrThrow()
-                .rows
-                .first()
-                .get(0)
-                .asLong()
-        return pageCount * pageSize
-    }
+    private suspend fun usedBytes(executor: TransactionContext): Long =
+        databaseBytes(executor) - executor.pragma("freelist_count") * executor.pragma("page_size")
+
+    /** The file: free pages included, because they are in it whether or not anything uses them. */
+    private suspend fun databaseBytes(executor: TransactionContext): Long =
+        executor.pragma("page_count") * executor.pragma("page_size")
+
+    private suspend fun TransactionContext.pragma(name: String): Long =
+        fetchAll("PRAGMA $name;")
+            .getOrThrow()
+            .rows
+            .first()
+            .get(0)
+            .asLong()
 }

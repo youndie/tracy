@@ -46,3 +46,8 @@ means the old pod is gone before the new one starts, which is also why the deplo
 `db.maxBytes` is kept below `db.size` on purpose. A full volume is a write failure; an exceeded
 budget is a planned drop of the oldest day. The gap between them is the margin in which the
 server gets to make that choice.
+
+The budget is on what the database *uses*, which is what `usedBytes` in `/health/retention`
+reports. Dropping a day returns its pages to SQLite's free list rather than to the volume, so the
+file keeps its high-water mark and reuses the space for later writes — size the volume for the
+mark, not for what is used today.
