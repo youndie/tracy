@@ -16,7 +16,15 @@ server:
   #
   # 0.3.1 is where the M-137 server starts: a two-connection pool, the log sweep, the arena cap.
   # `0.3.0` on ghcr is the image that was measured dying at 65 minutes and has to keep meaning that.
-  version: 0.3.1
+  #
+  # 0.3.2 is the first server whose ingest path cannot lose a write in silence (#48): every
+  # statement is checked, a failure answers `503` instead of `202`, and eviction forgets the day it
+  # drops so a late record recreates the partition rather than being written into a table that is
+  # gone. It carries migration V5, which rebuilds `ingest_batch` on the key V4 meant to give it —
+  # the first start on an existing database runs that rebuild before the port opens.
+  # The size cap also stops emptying the database (#47): it counts used pages, which is what a
+  # `DROP TABLE` moves, instead of the file, which it does not.
+  version: 0.3.2
   resources:
     requests:
       cpu: "50m"
