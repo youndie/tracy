@@ -45,7 +45,11 @@ class TextSearchTest {
             val db = freshDb()
             seed(db)
 
-            val result = QueryRepository(db).searchLogs(since = 0, until = Long.MAX_VALUE, query = "payment")
+            val result =
+                QueryRepository(
+                    db,
+                    clock = { day },
+                ).searchLogs(since = 0, until = Long.MAX_VALUE, query = "payment")
 
             assertEquals(2, result.items.size)
             assertTrue(result.items.all { "payment" in it.message })
@@ -58,7 +62,11 @@ class TextSearchTest {
             seed(db)
 
             // What the trigram tokenizer buys: no prefix anchoring, so `ateway` hits.
-            val result = QueryRepository(db).searchLogs(since = 0, until = Long.MAX_VALUE, query = "ateway")
+            val result =
+                QueryRepository(
+                    db,
+                    clock = { day },
+                ).searchLogs(since = 0, until = Long.MAX_VALUE, query = "ateway")
 
             assertEquals(1, result.items.size)
         }
@@ -69,7 +77,11 @@ class TextSearchTest {
             val db = freshDb()
             seed(db)
 
-            val result = QueryRepository(db).searchLogs(since = 0, until = Long.MAX_VALUE, query = "kubernetes")
+            val result =
+                QueryRepository(
+                    db,
+                    clock = { day },
+                ).searchLogs(since = 0, until = Long.MAX_VALUE, query = "kubernetes")
 
             // A filter that matches no template must not silently fall through to an unfiltered
             // read — that failure looks like a working search returning the whole window.
@@ -81,7 +93,7 @@ class TextSearchTest {
         runTest {
             val db = freshDb()
             seed(db)
-            val repository = QueryRepository(db)
+            val repository = QueryRepository(db, clock = { day })
 
             // Each of these is a parse error or an operator if passed through raw. Bound as a
             // phrase they are ordinary characters, so the worst case is an empty result.
@@ -103,7 +115,7 @@ class TextSearchTest {
         runTest {
             val db = freshDb()
             seed(db)
-            val repository = QueryRepository(db)
+            val repository = QueryRepository(db, clock = { day })
 
             // "order 12345 created" is indexed as "order <num> created": the number is gone. This
             // is the contract rather than a limitation to work around — an index over values would
@@ -120,7 +132,7 @@ class TextSearchTest {
 
             val failure =
                 assertFailsWith<IllegalArgumentException> {
-                    QueryRepository(db).searchLogs(since = 0, until = Long.MAX_VALUE, query = "up")
+                    QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE, query = "up")
                 }
 
             assertTrue("3 characters" in failure.message.orEmpty(), failure.message.orEmpty())
@@ -133,7 +145,7 @@ class TextSearchTest {
             seed(db)
 
             val result =
-                QueryRepository(db).searchLogs(
+                QueryRepository(db, clock = { day }).searchLogs(
                     since = 0,
                     until = Long.MAX_VALUE,
                     query = "payment",

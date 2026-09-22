@@ -1,5 +1,6 @@
 package io.github.youndie.tracy.server.query
 
+import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
@@ -23,10 +24,23 @@ import org.koin.ktor.plugin.Koin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ServiceSummaryTest {
     private val day = 1785542400000L
+
+    /** One batch from a named generation, at [ts], whose agent claims to have sent it at [sentAt]. */
+    private suspend fun writeBatch(
+        db: ISQLite,
+        instance: String,
+        ts: Long,
+        sentAt: Long = ts,
+        seq: Long = 1,
+    ) = IngestBatchUseCase(IngestRepository(db, clock = { ts }), clock = { ts })(
+        BatchHeader("orders-api", instance, "1.0", seq, sentAt = sentAt),
+        listOf(LogRecord(ts = ts, seq = seq, level = Level.INFO, logger = "L", message = "order created")),
+    )
 
     @Test
     fun `produced and stored are reported separately`() =
@@ -64,7 +78,14 @@ class ServiceSummaryTest {
                 // was stored would report tracy's sampling policy back at the operator.
                 assertEquals(1_000_000, summary.producedBytes)
                 assertEquals(2, summary.storedRecords)
-                assertEquals(1, summary.instances)
+
+                // Through the real container, so the clock is the machine's: these records were
+                // written at a fixed date long past, and nothing has reported since. One generation
+                // ever, none of it inside the window, and therefore no clock reading at all —
+                // absent rather than zero, because zero would claim the clocks agree.
+                assertEquals(1, summary.instancesEverSeen)
+                assertEquals(0, summary.instances)
+                assertNull(summary.maxClockSkewMs)
             } finally {
                 client.close()
                 server.stop(gracePeriodMillis = 0, timeoutMillis = 300)
@@ -168,6 +189,45 @@ class ServiceSummaryTest {
                 client.close()
                 server.stop(gracePeriodMillis = 0, timeoutMillis = 300)
             }
+        }
+
+    @Test
+    fun `a dead generation does not raise the skew of a live one`() =
+        runTest {
+            val db = openDatabase("/tmp/tracy-summary-skew-${Random.nextLong()}.db")
+            // A pod from three weeks ago whose clock was a minute out, and today's pod, whose is
+            // five milliseconds out. Both rows stay in `instance` forever; only one is reporting.
+            val old = day - 21 * 86_400_000L
+            writeBatch(db, instance = "pod-old", ts = old, sentAt = old - 61_000)
+            writeBatch(db, instance = "pod-now", ts = day, sentAt = day - 5, seq = 2)
+
+            val summary = QueryRepository(db, clock = { day }).listServices().single()
+
+            // The maximum used to be taken over every generation ever, so it could only rise: a
+            // reading left by a deleted pod hid every smaller one behind it, which is exactly what
+            // `clock_skew_ms` exists to surface (M-110).
+            assertEquals(5, summary.maxClockSkewMs)
+            assertEquals(1, summary.instances)
+            assertEquals(2, summary.instancesEverSeen)
+            assertEquals(24 * 60 * 60 * 1000L, summary.windowMs)
+        }
+
+    @Test
+    fun `no instance in the window means no reading rather than a zero`() =
+        runTest {
+            val db = openDatabase("/tmp/tracy-summary-quiet-${Random.nextLong()}.db")
+            val old = day - 21 * 86_400_000L
+            writeBatch(db, instance = "pod-old", ts = old, sentAt = old - 61_000)
+
+            val summary = QueryRepository(db, clock = { day }).listServices().single()
+
+            // Absent, not zero. A zero here reads as "the clocks agree", and the service has not
+            // said anything for three weeks — which `lastSeen` reports, unwindowed, on its own.
+            assertNull(summary.maxClockSkewMs)
+            assertNull(summary.maxRecordAgeMs)
+            assertEquals(0, summary.instances)
+            assertEquals(1, summary.instancesEverSeen)
+            assertEquals(old, summary.lastSeen)
         }
 }
 

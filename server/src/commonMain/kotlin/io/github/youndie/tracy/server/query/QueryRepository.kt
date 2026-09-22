@@ -73,9 +73,16 @@ public data class TemplateStatsResult(
 public class QueryRepository(
     private val db: ISQLite,
     private val maxLimit: Int = 200,
+    /**
+     * Needed by [listServices] alone, and needed there because "who is reporting" is a question
+     * about a moment. No default on purpose: a fallback clock would answer every summary with an
+     * empty window and call it an empty answer, which is the shape of a check that passes by
+     * finding nothing.
+     */
+    private val clock: () -> Long,
 ) {
     /** The same summary the HTTP endpoint serves, so MCP and HTTP cannot drift apart. */
-    public suspend fun listServices(): List<ServiceSummary> = serviceSummaries(db)
+    public suspend fun listServices(): List<ServiceSummary> = serviceSummaries(db, clock())
 
     public suspend fun searchLogs(
         service: String? = null,
