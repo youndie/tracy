@@ -37,11 +37,15 @@ spec:
             - name: TRACY_DB_PATH
               value: {{ .Values.db.path }}/{{ .Values.db.name }}
             - name: TRACY_DB_MAX_BYTES
-              value: {{ .Values.db.maxBytes | quote }}
+              # `int64` before `quote`, and it is not decoration. Helm parses a plain YAML number
+              # into a float, so `quote` alone renders 6442450944 as "6.442450944e+09" — which the
+              # server cannot parse, and which it used to answer by silently taking its own default
+              # of 4 GiB. The stand ran six weeks on a cap nobody had set.
+              value: {{ .Values.db.maxBytes | int64 | quote }}
             - name: TRACY_RETENTION_DAYS
-              value: {{ .Values.retention.days | quote }}
+              value: {{ .Values.retention.days | int64 | quote }}
             - name: TRACY_RETENTION_COUNTS_DAYS
-              value: {{ .Values.retention.countsDays | quote }}
+              value: {{ .Values.retention.countsDays | int64 | quote }}
             # From the Secret, not inlined: an inlined value shows up in
             # `kubectl get deployment -o yaml` and in Helm release history.
             - name: TRACY_INGEST_KEY
