@@ -61,7 +61,12 @@ class McpTransportTest {
                 mcpAllowedHosts = allowedHosts,
             )
         val facade =
-            ToolFacade(QueryRepository(db), TraceRepository(db), SpanSearchRepository(db), EntityRepository(db))
+            ToolFacade(
+                QueryRepository(db, clock = { day }),
+                TraceRepository(db),
+                SpanSearchRepository(db),
+                EntityRepository(db),
+            )
 
         IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
             BatchHeader("orders-api", "pod-a", "1.0", 1),

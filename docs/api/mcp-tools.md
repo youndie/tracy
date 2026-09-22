@@ -29,7 +29,7 @@ claude mcp add --transport http tracy https://tracy.example/mcp \
 
 | Инструмент | Аннотации | Что отдаёт |
 |---|---|---|
-| `list_services` | `readOnly` | сервисы, инстансы, последняя активность, произведено и сохранено байт по уровням |
+| `list_services` | `readOnly` | сервисы, инстансы **за окно `windowMs`** (сутки) рядом с `instancesEverSeen`, последняя активность, произведено и сохранено байт по уровням |
 | `search_logs(service?, instance?, level?, since?, until?, query?, templateId?, exceptionClass?, entityKey?, entityValue?, limit)` | `readOnly` | **структура** записей: время, сервис, уровень, логгер, шаблон, `traceId`, ключи полей |
 | `get_trace(traceId, limit, depth?)` | `readOnly` | **дерево спанов с длительностями + вписанные записи логов** по всем сервисам |
 | `get_entity(key, value, since?, until?, limit)` | `readOnly` | **хронология бизнес-сущности** через все сервисы и трассы |

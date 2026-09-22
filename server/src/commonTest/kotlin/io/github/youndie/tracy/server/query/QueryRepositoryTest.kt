@@ -69,7 +69,7 @@ class QueryRepositoryTest {
             val db = freshDb()
             seed(db)
 
-            val result = QueryRepository(db).searchLogs(since = window.first, until = window.second)
+            val result = QueryRepository(db, clock = { day }).searchLogs(since = window.first, until = window.second)
 
             assertEquals(5, result.items.size)
         }
@@ -80,7 +80,7 @@ class QueryRepositoryTest {
             val db = freshDb()
             seed(db)
 
-            val result = QueryRepository(db).searchLogs(since = window.first, until = window.second)
+            val result = QueryRepository(db, clock = { day }).searchLogs(since = window.first, until = window.second)
 
             // Without this a reader concludes "it did not happen" from "it was not kept".
             assertTrue("Sampled" in result.note)
@@ -91,7 +91,7 @@ class QueryRepositoryTest {
         runTest {
             val db = freshDb()
             seed(db)
-            val repository = QueryRepository(db)
+            val repository = QueryRepository(db, clock = { day })
 
             assertEquals(
                 1,
@@ -114,7 +114,7 @@ class QueryRepositoryTest {
             seed(db)
 
             val result =
-                QueryRepository(db).searchLogs(
+                QueryRepository(db, clock = { day }).searchLogs(
                     exceptionClass = "NoTransformationFoundException",
                     since = window.first,
                     until = window.second,
@@ -129,7 +129,7 @@ class QueryRepositoryTest {
         runTest {
             val db = freshDb()
             seed(db)
-            val repository = QueryRepository(db)
+            val repository = QueryRepository(db, clock = { day })
             val templateId =
                 repository
                     .searchLogs(level = Level.ERROR, since = window.first, until = window.second)
@@ -150,7 +150,7 @@ class QueryRepositoryTest {
             seed(db)
 
             val hit =
-                QueryRepository(db)
+                QueryRepository(db, clock = { day })
                     .searchLogs(since = window.first, until = window.second)
                     .items
                     .single { it.untrusted }
@@ -167,7 +167,7 @@ class QueryRepositoryTest {
             seed(db)
 
             val hit =
-                QueryRepository(db)
+                QueryRepository(db, clock = { day })
                     .searchLogs(since = window.first, until = window.second)
                     .items
                     .single { it.fieldKeys.isNotEmpty() }
@@ -182,7 +182,7 @@ class QueryRepositoryTest {
             seed(db)
 
             val result =
-                QueryRepository(db).searchLogs(
+                QueryRepository(db, clock = { day }).searchLogs(
                     entityKey = "orderId",
                     entityValue = "12345",
                     since = window.first,
@@ -198,7 +198,11 @@ class QueryRepositoryTest {
             val db = freshDb()
             seed(db)
 
-            val result = QueryRepository(db).searchLogs(since = window.first, until = window.second, limit = 2)
+            val result =
+                QueryRepository(
+                    db,
+                    clock = { day },
+                ).searchLogs(since = window.first, until = window.second, limit = 2)
 
             assertEquals(2, result.items.size)
             assertTrue(result.truncated)
@@ -220,7 +224,7 @@ class QueryRepositoryTest {
                 ),
             )
 
-            val stats = QueryRepository(db).templateStats(since = day - 1000, until = day + 1000)
+            val stats = QueryRepository(db, clock = { day }).templateStats(since = day - 1000, until = day + 1000)
 
             assertTrue(stats.exact)
             assertEquals(40_000, stats.items.single().count)
@@ -245,7 +249,7 @@ class QueryRepositoryTest {
             )
 
             val stats =
-                QueryRepository(db).templateStats(
+                QueryRepository(db, clock = { day }).templateStats(
                     since = day - 1000,
                     until = day + 300_000,
                     stepMillis = 60_000,
@@ -269,8 +273,20 @@ class QueryRepositoryTest {
             repo(BatchHeader("orders-api", "pod-a", "1.0.0", 1), listOf(counter))
             repo(BatchHeader("orders-api", "pod-a", "1.0.1", 2), listOf(counter.copy(count = 500)))
 
-            val before = QueryRepository(db).templateStats(release = "1.0.0", since = day - 1000, until = day + 1000)
-            val after = QueryRepository(db).templateStats(release = "1.0.1", since = day - 1000, until = day + 1000)
+            val before =
+                QueryRepository(db, clock = { day }).templateStats(
+                    release = "1.0.0",
+                    since = day - 1000,
+                    until =
+                        day + 1000,
+                )
+            val after =
+                QueryRepository(db, clock = { day }).templateStats(
+                    release = "1.0.1",
+                    since = day - 1000,
+                    until =
+                        day + 1000,
+                )
 
             assertEquals(5, before.items.single().count)
             assertEquals(500, after.items.single().count)

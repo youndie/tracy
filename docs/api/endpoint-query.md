@@ -29,7 +29,7 @@ parent_feature: feature-log-search
 | Метод и путь | Auth-tier | Назначение |
 |---|---|---|
 | `POST /ingest` | `X-Tracy-Key` | приём батча, [protocol-ingest](protocol-ingest.md) |
-| `GET /api/services` | заголовки reverse proxy | сервисы, инстансы, последняя активность, **произведено и сохранено байт**, расхождение часов и возраст записей, `duplicateBatches`, число ссылок на ключ |
+| `GET /api/services` | заголовки reverse proxy | сервисы, инстансы, последняя активность, **произведено и сохранено байт**, расхождение часов и возраст записей, `duplicateBatches`, число ссылок на ключ. `instances`, `maxClockSkewMs` и `maxRecordAgeMs` считаются **по окну** `windowMs` (сутки) — по тем поколениям пода, что отчитывались в нём; `instancesEverSeen` — сколько их было всего. Нет инстанса в окне — полей расхождения **нет в ответе** вовсе: отсутствие значит «некого спросить», ноль значил бы «часы сходятся». `lastSeen` и `duplicateBatches` окном не ограничены |
 | `GET /api/logs` | заголовки reverse proxy | поиск: `service`, `instance`, `level`, `since`, `until`, `q`, `templateId`, `exceptionClass`, `traceId`, `entityKey`+`entityValue`, `limit` |
 | `GET /api/spans` | заголовки reverse proxy | поиск по спанам: `service`, `name`, `minDurationMs`, `onlyErrors`, `since`, `until`, `limit` |
 | `GET /api/entities/{key}/{value}` | заголовки reverse proxy | хронология сущности по всем сервисам и трассам |

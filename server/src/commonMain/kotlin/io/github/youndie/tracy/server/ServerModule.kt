@@ -50,7 +50,7 @@ public fun serverModule(
         single { IngestRepository(db, partitions = get(), budget = get(), clock = { currentTimeMillis() }) }
         single { IngestBatchUseCase(get(), clock = { currentTimeMillis() }) }
 
-        single { QueryRepository(db) }
+        single { QueryRepository(db, clock = { currentTimeMillis() }) }
         single { TraceRepository(db) }
         single { SpanSearchRepository(db) }
         single { EntityRepository(db) }
