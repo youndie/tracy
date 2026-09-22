@@ -24,7 +24,18 @@ server:
   # the first start on an existing database runs that rebuild before the port opens.
   # The size cap also stops emptying the database (#47): it counts used pages, which is what a
   # `DROP TABLE` moves, instead of the file, which it does not.
-  version: 0.3.2
+  #
+  # 0.3.3 sweeps what nothing swept before. Batch markers age out on their own horizon
+  # (`TRACY_RETENTION_MARKERS_DAYS`, two days): the first start on an existing database deletes
+  # every marker older than that — on the stand about two million rows, in chunks of ten thousand.
+  # The summary changes shape with it: `instances` now counts the generations that reported inside
+  # `windowMs` rather than every one ever seen, and the clock-skew maximum is taken over the same
+  # window instead of over pods deleted weeks ago.
+  #
+  # It also refuses to start on a number it cannot read, where it used to take its own default —
+  # which is why the `int64` in the deployment template ships in the same image: without it the
+  # chart hands this server `6.442450944e+09` and the pod will not come up.
+  version: 0.3.3
   resources:
     requests:
       cpu: "50m"
