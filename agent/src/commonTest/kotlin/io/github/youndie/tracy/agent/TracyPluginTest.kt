@@ -64,6 +64,16 @@ class TracyPluginTest {
                         call.respondText("ok")
                     }
                     get("/boom") { throw IllegalStateException("boom") }
+                    // Answers, then keeps its handler running. The client has its response and
+                    // returns while the plugin has not yet reached the tail decision — the window
+                    // every test here reads through, made wide enough to hit every time.
+                    get("/users-then-linger/{id}") {
+                        agent.logger("UsersRouting").info("user fetched") {
+                            field("userId", call.parameters["id"], indexed = true)
+                        }
+                        call.respondText("ok")
+                        kotlinx.coroutines.delay(300)
+                    }
                     get("/slow") {
                         // Real elapsed time: the plugin measures duration with a monotonic clock,
                         // deliberately, so it cannot be fooled by a wall-clock jump. The injected
@@ -85,7 +95,13 @@ class TracyPluginTest {
             )
         } finally {
             client.close()
-            server.stop(gracePeriodMillis = 0, timeoutMillis = 300)
+            // With a grace period, not without one. The tail decision runs after `proceed()`
+            // returns, which is after the response has left: the client can be done while the
+            // handler is not. `stop(0)` then cancels that call, the plugin reads the cancellation as
+            // a failure, marks the trace as a problem and keeps all of it — so a test about a
+            // dropped trace reads a kept one. Under the parallel test tasks of a CI build that
+            // happened in 2 of 37 runs; the lingering route above makes it happen every time.
+            server.stop(gracePeriodMillis = 1_000, timeoutMillis = 2_000)
         }
     }
 
@@ -178,6 +194,22 @@ class TracyPluginTest {
             assertEquals("userId", refs.single().key)
             assertEquals("42", refs.single().value)
             assertTrue(lines.filterIsInstance<LogRecord>().isEmpty(), "the body must be gone")
+        }
+
+    @Test
+    fun `a handler that lingers after answering still ends in a dropped trace`() =
+        runTest {
+            val agent = agent(sampleRate = 0.0, random = { 1.0 })
+            withApp(agent) { client, port -> client.get("http://127.0.0.1:$port/users-then-linger/42") }
+
+            val lines = agent.drainBatch()
+
+            // What is read here has to be the decision about a request that finished, not about one
+            // the test harness cut short: a reference without its body, and neither the body nor a
+            // span. With the server stopped without a grace period this failed on every run.
+            assertEquals(1, lines.filterIsInstance<EntityRef>().size)
+            assertTrue(lines.filterIsInstance<LogRecord>().isEmpty(), "the body must be gone")
+            assertTrue(lines.filterIsInstance<Span>().isEmpty(), "a dropped trace keeps no span")
         }
 
     @Test
