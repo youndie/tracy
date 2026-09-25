@@ -323,7 +323,21 @@ class RetentionTest {
             val db = freshDb()
             // More rows than a single chunk, so the loop has to come round again. 10 000 is the
             // chunk, and a test that stopped below it would pass without ever exercising the loop.
-            repeat(10_500) { writeBatchAt(db, ts = day, seq = (it + 1).toLong(), records = 0) }
+            //
+            // One batch goes through ingest to create the instance; the rest of the markers are
+            // written by one statement. Ten thousand ingest transactions took 44 s on linuxX64 and
+            // ran past `runTest`'s minute on a CI runner, and the sweep does not care how a marker
+            // got there.
+            writeBatchAt(db, ts = day, seq = 1, records = 0)
+            db
+                .execute(
+                    """
+                    WITH RECURSIVE n(seq) AS (SELECT 2 UNION ALL SELECT seq + 1 FROM n WHERE seq < 10500)
+                    INSERT INTO ingest_batch (instance_id, run, seq, received_at)
+                    SELECT (SELECT instance_id FROM ingest_batch), '', seq, $day FROM n;
+                    """.trimIndent(),
+                ).getOrThrow()
+            assertEquals(10_500, db.scalar("SELECT count(*) FROM ingest_batch"))
             val now = day + 3 * 86_400_000L
 
             val state =
