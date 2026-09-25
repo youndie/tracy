@@ -118,6 +118,47 @@ public class Redactor(
                 "session",
             )
 
+        internal val BEARER: Regex = Regex("""(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}""")
+
+        /** `bearer`, one whitespace, sixteen token characters: nothing shorter can hold a match. */
+        private const val BEARER_MIN_LENGTH = 23
+
+        /**
+         * The gate for [BEARER]: long enough to hold a match, and the word in ASCII letters of any case.
+         *
+         * It replaces `contains("earer", ignoreCase = true)`, which runs for every message and every
+         * field value and turned out to be the most expensive thing on the whole redaction path.
+         * Measured on Kotlin/Native, one gate at a time: ~506 ns on `order created` and ~1 080 ns on
+         * `401: GET /api/user/me` — two thirds of all seven gates together — because case-insensitive
+         * comparison of `Char` goes through Unicode case tables for every character tried. The other
+         * six gates cost 20–130 ns each.
+         *
+         * **Necessary, and therefore safe.** A match needs at least [BEARER_MIN_LENGTH] characters,
+         * and `(?i)` folds ASCII only, so the word it matched is `bearer` in ASCII letters of some case.
+         * Neither half can close on a text the pattern matches; the test beside this checks that as an
+         * implication over generated text, including letters outside ASCII.
+         */
+        internal fun bearerCandidate(text: String): Boolean =
+            text.length >= BEARER_MIN_LENGTH && containsAsciiIgnoreCase(text, "bearer")
+
+        /** Case folding for `A`–`Z` and nothing else — which is all `(?i)` does in [BEARER]. */
+        private fun containsAsciiIgnoreCase(
+            text: String,
+            lowerNeedle: String,
+        ): Boolean {
+            val last = text.length - lowerNeedle.length
+            var i = 0
+            while (i <= last) {
+                var j = 0
+                while (j < lowerNeedle.length && asciiLower(text[i + j]) == lowerNeedle[j]) j++
+                if (j == lowerNeedle.length) return true
+                i++
+            }
+            return false
+        }
+
+        private fun asciiLower(c: Char): Char = if (c in 'A'..'Z') c + ('a' - 'A') else c
+
         internal val ID_SECRET: Regex = Regex("""(/[^/\s]*?:)[A-Za-z0-9_-]{20,}""")
 
         /**
@@ -173,9 +214,9 @@ public class Redactor(
                 ) { "://" in it && '@' in it },
                 // Bearer <token>
                 MessageRule(
-                    Regex("""(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}"""),
+                    BEARER,
                     "$1$REDACTED",
-                ) { it.contains("earer", ignoreCase = true) },
+                ) { bearerCandidate(it) },
                 // /bot123456:AAF...  — an id:secret path segment. Exactly the shape found in
                 // production logs, and common far beyond Telegram.
                 MessageRule(

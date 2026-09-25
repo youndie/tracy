@@ -168,4 +168,42 @@ class RedactionTest {
         assertTrue(Redactor.colonAfterFirstSlash(text))
         assertTrue("AAF3kQ9zX7vL2pR8mN4tY6wB" !in Redactor().redactMessage(text).text)
     }
+
+    @Test
+    fun `the bearer gate is never narrower than its pattern`() {
+        // Same shape as the id-secret check: an implication over generated text, weighted towards
+        // what the pattern cares about — the word in mixed case, whitespace of several kinds, token
+        // characters — and salted with letters outside ASCII, because the gate folds ASCII only and
+        // that is exactly the claim to test.
+        val random = kotlin.random.Random(44)
+        val noise = "abc XYZ 01 -_.é ß ſ İ Ω\u00A0\t"
+        val spaces = listOf(" ", "  ", "\t", "\u00A0", "\u2003", "\n")
+        val tokenChars = "AbCdEf0123456789._~+/=-"
+        var matches = 0
+        repeat(200_000) {
+            val text =
+                buildString {
+                    repeat(random.nextInt(0, 12)) { append(noise[random.nextInt(noise.length)]) }
+                    if (random.nextInt(3) == 0) {
+                        "bearer".forEach { c -> append(if (random.nextBoolean()) c.uppercaseChar() else c) }
+                        append(spaces[random.nextInt(spaces.size)])
+                        repeat(random.nextInt(10, 24)) { append(tokenChars[random.nextInt(tokenChars.length)]) }
+                    }
+                    repeat(random.nextInt(0, 12)) { append(noise[random.nextInt(noise.length)]) }
+                }
+            if (Redactor.BEARER.containsMatchIn(text)) {
+                matches++
+                assertTrue(Redactor.bearerCandidate(text), "gate closed on a text the pattern matches: \"$text\"")
+            }
+        }
+        assertTrue(matches > 1_000, "the generator produced only $matches matching texts")
+    }
+
+    @Test
+    fun `short ordinary messages do not open the bearer gate`() {
+        // Both lines are shorter than any possible match, so the gate settles them on length alone.
+        assertFalse(Redactor.bearerCandidate("order created"))
+        assertFalse(Redactor.bearerCandidate("401: GET /api/user/me"))
+        assertTrue(Redactor.bearerCandidate("Authorization: BeArEr abcdefghijklmnop0123"))
+    }
 }
