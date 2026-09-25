@@ -32,6 +32,18 @@ class SelfObservationTest {
             clock = { day + 1 },
         )
 
+    private fun observation(
+        db: ISQLite,
+        runId: String,
+    ) = SelfObservation(
+        acceptBatch = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day }),
+        service = "tracy-server",
+        instanceId = "pod-a",
+        release = "0.1.0",
+        clock = { day + 1 },
+        runId = runId,
+    )
+
     @Test
     fun `tracy appears in its own list of services`() =
         runTest {
@@ -67,6 +79,34 @@ class SelfObservationTest {
 
             val found = QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE)
             assertEquals(listOf("first", "second"), found.items.map { it.message })
+        }
+
+    @Test
+    fun `a restarted process in the same pod keeps its own logs`() =
+        runTest {
+            val db = freshDb()
+
+            // Two processes with one HOSTNAME: a container restarted inside the same pod. Each
+            // starts its sequence from zero, so only the run tells their batches apart (#66).
+            observation(db).log(Level.INFO, "Boot", "first start")
+            observation(db).log(Level.INFO, "Boot", "second start")
+
+            val found = QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE)
+            assertEquals(listOf("first start", "second start"), found.items.map { it.message }.sorted())
+        }
+
+    @Test
+    fun `without a run the restarted process is dropped as a duplicate`() =
+        runTest {
+            val db = freshDb()
+
+            // The control for the test above: the same two starts keyed the old way lose the
+            // second one, so that test can tell the fix from its absence.
+            observation(db, runId = "").log(Level.INFO, "Boot", "first start")
+            observation(db, runId = "").log(Level.INFO, "Boot", "second start")
+
+            val found = QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE)
+            assertEquals(listOf("first start"), found.items.map { it.message })
         }
 
     @Test
