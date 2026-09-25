@@ -35,7 +35,12 @@ server:
   # It also refuses to start on a number it cannot read, where it used to take its own default —
   # which is why the `int64` in the deployment template ships in the same image: without it the
   # chart hands this server `6.442450944e+09` and the pod will not come up.
-  version: 0.3.3
+  #
+  # 0.3.4 keeps its own logs across a container restart (#66). Self-observation keyed its batches
+  # without a run, so a container restarted inside the same pod reused the previous run's
+  # `(instance, seq)` and its first lines were dropped as duplicates. No migration and no new
+  # setting: markers written before this version keep their empty run and age out as usual.
+  version: 0.3.4
   resources:
     requests:
       cpu: "50m"
