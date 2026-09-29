@@ -5,6 +5,7 @@ import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
+import io.github.youndie.tracy.server.installKoinWithoutCallScope
 import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.wire.Level
@@ -20,7 +21,6 @@ import io.ktor.server.resources.Resources
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
-import org.koin.ktor.plugin.Koin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,7 +58,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    install(Koin) { modules(serverModule(testConfig(), db)) }
+                    installKoinWithoutCallScope(serverModule(testConfig(), db))
                     install(Resources)
                     routing { queryRoutes() }
                 }
@@ -116,7 +116,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    install(Koin) { modules(serverModule(testConfig(), db)) }
+                    installKoinWithoutCallScope(serverModule(testConfig(), db))
                     install(Resources)
                     routing { queryRoutes() }
                 }
@@ -166,7 +166,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    install(Koin) { modules(serverModule(testConfig(), db)) }
+                    installKoinWithoutCallScope(serverModule(testConfig(), db))
                     install(Resources)
                     routing { queryRoutes() }
                 }

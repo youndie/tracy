@@ -41,7 +41,6 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.SYSTEM
 import org.koin.ktor.ext.get
-import org.koin.ktor.plugin.Koin
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
@@ -197,8 +196,9 @@ public fun Application.module(
     installKoreVersion(KoreBuildIdentity)
 
     // One container, one instance of each collaborator. What this replaces: four repositories
-    // constructed twice — once for the MCP facade, once for the HTTP routes.
-    install(Koin) { modules(serverModule(config, db)) }
+    // constructed twice — once for the MCP facade, once for the HTTP routes. Not `install(Koin)`:
+    // that plugin opens a scope per call, and on Kotlin/Native each one leaks (see the function).
+    installKoinWithoutCallScope(serverModule(config, db))
 
     // Typed routes need this installed, and the failure without it is at runtime rather than at
     // compile time — the route simply never matches.
