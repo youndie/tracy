@@ -5,6 +5,7 @@ import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
+import io.github.youndie.tracy.server.installKoinWithoutCallScope
 import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.server.trace.traceRoutes
@@ -19,13 +20,12 @@ import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.resources.Resources
 import io.ktor.server.routing.routing
-import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.JsonPrimitive
-import org.koin.ktor.plugin.Koin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The typed routes, over HTTP.
@@ -60,7 +60,7 @@ class TypedRoutesTest {
         val config = ServerConfig(httpPort = 0, dbPath = "unused", ingestKey = "k")
         val server =
             embeddedServer(CIO, port = 0) {
-                install(Koin) { modules(serverModule(config, db)) }
+                installKoinWithoutCallScope(serverModule(config, db))
                 install(Resources)
                 routing {
                     queryRoutes()

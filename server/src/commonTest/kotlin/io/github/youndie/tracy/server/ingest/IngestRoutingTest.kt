@@ -4,6 +4,7 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.IngestRepository
+import io.github.youndie.tracy.server.installKoinWithoutCallScope
 import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.wire.IngestHeaders
@@ -20,13 +21,12 @@ import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.resources.Resources
 import io.ktor.server.routing.routing
-import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.JsonPrimitive
-import org.koin.ktor.plugin.Koin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The endpoint over a real socket. The parts worth testing here — header validation, the status
@@ -64,7 +64,7 @@ class IngestRoutingTest {
         val server =
             embeddedServer(CIO, port = 0) {
                 // The real container, so the test covers the wiring as well as the handler.
-                install(Koin) { modules(serverModule(config, db)) }
+                installKoinWithoutCallScope(serverModule(config, db))
                 install(Resources)
                 routing { ingestRoutes() }
             }
