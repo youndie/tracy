@@ -58,7 +58,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    installKoreKoin { modules(serverModule(testConfig(), db) })
+                    installKoreKoin { modules(serverModule(testConfig(), db)) }
                     install(Resources)
                     routing { queryRoutes() }
                 }
@@ -116,7 +116,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    installKoreKoin { modules(serverModule(testConfig(), db) })
+                    installKoreKoin { modules(serverModule(testConfig(), db)) }
                     install(Resources)
                     routing { queryRoutes() }
                 }
@@ -166,7 +166,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    installKoreKoin { modules(serverModule(testConfig(), db) })
+                    installKoreKoin { modules(serverModule(testConfig(), db)) }
                     install(Resources)
                     routing { queryRoutes() }
                 }
