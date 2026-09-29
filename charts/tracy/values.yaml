@@ -40,7 +40,12 @@ server:
   # without a run, so a container restarted inside the same pod reused the previous run's
   # `(instance, seq)` and its first lines were dropped as duplicates. No migration and no new
   # setting: markers written before this version keep their empty run and age out as usual.
-  version: 0.3.4
+  #
+  # 0.3.5 stops leaking memory on every request (#70). koin-ktor opened a Koin scope per call, and
+  # on Linux each scope's lock is a native mutex that nothing frees: ~100 bytes of malloc per
+  # request, 154 MB of the stand's 176 MB after four days. The limit above was being eaten by that,
+  # not by the store.
+  version: 0.3.5
   resources:
     requests:
       cpu: "50m"
