@@ -4,11 +4,14 @@ import io.github.smyrgeorge.sqlx4k.ConnectionPool
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.smyrgeorge.sqlx4k.sqlite.sqlite
 import io.github.youndie.kore.generated.KoreBuildIdentity
+import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.kore.ktor.EngineDrain
 import io.github.youndie.kore.ktor.installKoreProbes
 import io.github.youndie.kore.ktor.installKoreVersion
 import io.github.youndie.kore.ktor.installShutdownRefusal
+import io.github.youndie.kore.ktor.startForKore
 import io.github.youndie.kore.lifecycle.AnnounceNotReady
+import io.github.youndie.kore.lifecycle.DrainGate
 import io.github.youndie.kore.lifecycle.ShutdownDeadlines
 import io.github.youndie.kore.lifecycle.ShutdownParticipant
 import io.github.youndie.kore.lifecycle.runUntilSignal
@@ -70,6 +73,10 @@ public fun main() {
     // Migrations run in here, before anything serves and before the startup gate opens.
     val db = openDatabase(config.dbPath, config.dbMaxConnections, config.dbIdleTimeoutSeconds)
     val probes = TracyProbes(db)
+    // One gate for the refusal and the drain. The refusal used to follow readiness, which falls at
+    // the start of the announce — so it answered 503 to exactly the requests the announce wait is
+    // there to keep serving (kore B-61). `EngineDrain` opens this gate as its first act.
+    val draining = DrainGate()
 
     val server =
         embeddedServer(
@@ -86,14 +93,22 @@ public fun main() {
                 // arrives in one.
                 shutdownGracePeriod = DEADLINES.drain.inWholeMilliseconds
                 shutdownTimeout = (DEADLINES.drain + 5.seconds).inWholeMilliseconds
+                // CIO on Kotlin/Native writes SO_REUSEADDR as an explicit 0 unless told otherwise,
+                // where the JVM listens with it on (kore B-62). Without it a restart in place meets
+                // the old process's TIME_WAIT and dies at bind.
+                reuseAddress = true
             },
-            module = { module(config, db, probes) },
+            module = { module(config, db, probes, draining) },
         )
 
     // NOT `wait = true`. The main thread has to reach the await below, or the signal arrives at a
     // process with no sequence to run and it is killed at the end of the grace period instead —
     // which, from outside, is indistinguishable from having stopped.
-    server.start(wait = false)
+    //
+    // `startForKore`, not `start`: on the JVM `start` leaves Ktor's own shutdown hook on, and it
+    // stops the engine at the signal, in the middle of the announce; on native it puts kore's
+    // signal handler in place before the engine can take the signal first (kore B-60, B-63).
+    server.startForKore()
 
     val checksScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     probes.start(checksScope)
@@ -109,7 +124,7 @@ public fun main() {
             onFinished = { run -> println(run.transcript) },
         ) {
             announce(AnnounceNotReady(probes.readiness))
-            drain(EngineDrain(server, DEADLINES.drain, DEADLINES.drain + 5.seconds))
+            drain(EngineDrain(server, DEADLINES.drain, DEADLINES.drain + 5.seconds, draining))
 
             // Last, because every write above it goes through this pool. `ApplicationStopping` —
             // where this would otherwise be closed — runs BEFORE the drain on Kotlin/Native and
@@ -183,12 +198,13 @@ public fun Application.module(
     config: ServerConfig,
     db: ISQLite,
     probes: TracyProbes,
+    draining: DrainGate,
 ) {
     // BEFORE the probes and before the routes. An interceptor installed later would let through
     // every call that arrived first, and the one request this must not miss is the first one after
-    // readiness has gone false. kore's own routes are exempt: a 503 from `/health/live` is a failed
+    // the drain has begun. kore's own routes are exempt: a 503 from `/health/live` is a failed
     // liveness probe, which restarts the pod in the middle of the shutdown it is reporting.
-    installShutdownRefusal(isShuttingDown = { probes.readiness.isShuttingDown })
+    installShutdownRefusal(draining)
     installKoreProbes(probes.startup, probes.readiness, probes.liveness)
 
     // The version and the commit, compiled in by the Gradle plugin because Kotlin/Native has neither
@@ -197,8 +213,9 @@ public fun Application.module(
 
     // One container, one instance of each collaborator. What this replaces: four repositories
     // constructed twice — once for the MCP facade, once for the HTTP routes. Not `install(Koin)`:
-    // that plugin opens a scope per call, and on Kotlin/Native each one leaks (see the function).
-    installKoinWithoutCallScope(serverModule(config, db))
+    // that plugin opens a Koin scope per call, and on Kotlin/Native each one leaks a native mutex
+    // (#70, kore B-65).
+    installKoreKoin { modules(serverModule(config, db)) }
 
     // Typed routes need this installed, and the failure without it is at runtime rather than at
     // compile time — the route simply never matches.

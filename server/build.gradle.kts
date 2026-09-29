@@ -107,6 +107,8 @@ kotlin {
             // lifecycle and the module uses the routes.
             implementation(libs.kore.core)
             implementation(libs.kore.ktor)
+            // Koin without koin-ktor's per-call scope, which leaks a native mutex per request (#70).
+            implementation(libs.kore.koin)
             implementation(ktorLibs.server.contentNegotiation)
             implementation(ktorLibs.server.resources)
             implementation(ktorLibs.serialization.kotlinx.json)

@@ -1,11 +1,11 @@
 package io.github.youndie.tracy.server.query
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
+import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
-import io.github.youndie.tracy.server.installKoinWithoutCallScope
 import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.server.trace.traceRoutes
@@ -60,7 +60,7 @@ class TypedRoutesTest {
         val config = ServerConfig(httpPort = 0, dbPath = "unused", ingestKey = "k")
         val server =
             embeddedServer(CIO, port = 0) {
-                installKoinWithoutCallScope(serverModule(config, db))
+                installKoreKoin { modules(serverModule(config, db)) }
                 install(Resources)
                 routing {
                     queryRoutes()

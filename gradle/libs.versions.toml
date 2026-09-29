@@ -4,10 +4,10 @@
 # there is no Kotlin version in this file to drift from the rest of the portfolio.
 sborka = "0.4.0.86"
 # kore: the process lifecycle of a server binary — ordered shutdown, three probes, /version. One
-# number for the two libraries and the Gradle plugin that generates the build identity: they are
+# number for the libraries and the Gradle plugin that generates the build identity: they are
 # published together, and a plugin from one version with a library from another would compile and
 # then disagree about the object it generates.
-kore = "0.1.4"
+kore = "0.1.12"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerializationJson = "1.11.0"
 kotlinxDatetime = "0.8.0"
@@ -24,6 +24,7 @@ ktlint = "1.8.0"
 [libraries]
 kore-core = { module = "io.github.youndie:kore-core", version.ref = "kore" }
 kore-ktor = { module = "io.github.youndie:kore-ktor", version.ref = "kore" }
+kore-koin = { module = "io.github.youndie:kore-koin", version.ref = "kore" }
 
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
