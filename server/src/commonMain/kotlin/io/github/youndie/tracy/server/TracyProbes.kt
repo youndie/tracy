@@ -56,7 +56,12 @@ public class TracyProbes(
         checks.start(scope)
     }
 
-    public fun stop() {
-        checks.stop()
+    /**
+     * Stops the loop and WAITS for a check in flight (kore B-53). A check is a statement against the
+     * store, and the stage after this one closes the pool; a loop cancelled without waiting could
+     * still be querying it.
+     */
+    public suspend fun stop() {
+        checks.stopAndJoin()
     }
 }

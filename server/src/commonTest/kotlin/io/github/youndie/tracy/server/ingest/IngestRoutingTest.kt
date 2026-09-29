@@ -2,9 +2,9 @@ package io.github.youndie.tracy.server.ingest
 
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
+import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.IngestRepository
-import io.github.youndie.tracy.server.installKoinWithoutCallScope
 import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.wire.IngestHeaders
@@ -64,7 +64,7 @@ class IngestRoutingTest {
         val server =
             embeddedServer(CIO, port = 0) {
                 // The real container, so the test covers the wiring as well as the handler.
-                installKoinWithoutCallScope(serverModule(config, db))
+                installKoreKoin { modules(serverModule(config, db)) }
                 install(Resources)
                 routing { ingestRoutes() }
             }

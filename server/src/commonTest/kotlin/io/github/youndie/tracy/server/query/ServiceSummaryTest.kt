@@ -1,11 +1,11 @@
 package io.github.youndie.tracy.server.query
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
+import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
-import io.github.youndie.tracy.server.installKoinWithoutCallScope
 import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.wire.Level
@@ -58,7 +58,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    installKoinWithoutCallScope(serverModule(testConfig(), db))
+                    installKoreKoin { modules(serverModule(testConfig(), db)) }
                     install(Resources)
                     routing { queryRoutes() }
                 }
@@ -116,7 +116,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    installKoinWithoutCallScope(serverModule(testConfig(), db))
+                    installKoreKoin { modules(serverModule(testConfig(), db)) }
                     install(Resources)
                     routing { queryRoutes() }
                 }
@@ -166,7 +166,7 @@ class ServiceSummaryTest {
                 embeddedServer(CIO, port = 0) {
                     // The same container production uses: the test now covers the wiring too,
                     // not only the handler.
-                    installKoinWithoutCallScope(serverModule(testConfig(), db))
+                    installKoreKoin { modules(serverModule(testConfig(), db)) }
                     install(Resources)
                     routing { queryRoutes() }
                 }
