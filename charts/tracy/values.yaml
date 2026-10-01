@@ -49,7 +49,13 @@ server:
   # 0.3.6 takes the same fix from kore (`kore-koin`, #72) together with kore 0.1.12: the 503 refusal
   # now starts with the drain instead of with the announce, the listener takes SO_REUSEADDR, and
   # stopping the probes waits for the check in flight. No setting changes.
-  version: 0.3.6
+  #
+  # 0.3.7 takes the MCP endpoint from kore (`kore-mcp`, kore 0.1.14, M-68): the token check runs on
+  # the transport's own route. MCP clients have to send `Authorization: Bearer <token>` — a bare
+  # token is refused now — and a foreign Host gets `400` with a JSON body. No setting changes, but a
+  # `TRACY_MCP_ALLOWED_HOSTS` entry that is not a host name fails the start; the chart passes
+  # `hostname`, which is one.
+  version: 0.3.7
   resources:
     requests:
       cpu: "50m"
