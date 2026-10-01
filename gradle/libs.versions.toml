@@ -2,7 +2,7 @@
 # The shared build conventions. One number: every sborka plugin below takes its version from here,
 # and so does the compiler — the `wip` catalog this release publishes carries `kotlin`, which is why
 # there is no Kotlin version in this file to drift from the rest of the portfolio.
-sborka = "0.4.0.86"
+sborka = "0.4.0.111"
 # kore: the process lifecycle of a server binary — ordered shutdown, three probes, /version. One
 # number for the libraries and the Gradle plugin that generates the build identity: they are
 # published together, and a plugin from one version with a library from another would compile and
