@@ -1,5 +1,7 @@
 package io.github.youndie.tracy.server.mcp
 
+import io.github.youndie.kore.mcp.HiddenCharacters
+
 /**
  * Static screen over untrusted text, modelled on katcher's `CrashTrust`.
  *
@@ -28,46 +30,42 @@ public data class ScreenResult(
 
 public object LogTrust {
     /**
-     * Invisible characters, written as escapes on purpose: katcher lost one of these to a
-     * formatter that silently ate the literal, and the diff showed nothing.
+     * A rule is a name and a test. The names are what a finding carries — never the text.
      *
-     * The C0 controls at the end were added after looking at a real stream (M-66). A framework's
-     * request logger colours its output with ANSI escapes, so `\u001B[31m401 Unauthorized\u001B[m`
-     * is what actually arrives — and an escape sequence hides text from a human reader for
-     * exactly the reason zero-width characters do. Tab, newline and carriage return are excluded
-     * because they are ordinary in a log line.
+     * Phrases are this service's own business and stay regular expressions here: a log line is prose
+     * in a way a crash title is not, and one list tuned for both would be wrong for each.
      */
-    private val INVISIBLE =
-        Regex(
-            "[\u200B\u200C\u200D\u2060\uFEFF\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u00AD" +
-                "\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]",
-        )
-
-    private val RULES: List<Pair<String, Regex>> =
+    private val RULES: List<Pair<String, (String) -> Boolean>> =
         listOf(
             "language addressed to the reader" to
                 Regex(
                     "(?i)\\b(ignore (all )?(previous|prior)|disregard (the )?above|you are (now )?an?|" +
                         "as an ai|system prompt|new instructions?|do not tell|instead[, ]+(please )?(run|execute)|" +
                         "важно:? выполни|игнорируй предыдущ)",
-                ),
+                )::containsMatchIn,
             "shell invocation" to
                 Regex(
                     "(?i)(\\bcurl\\s+-|\\bwget\\s+https?://|rm\\s+-rf\\s|\\bbash\\s+-c|\\bsh\\s+-c|" +
                         "\\|\\s*(ba)?sh\\b|\\bsudo\\s|\\$\\([^)]+\\)|`[^`]{4,}`)",
-                ),
+                )::containsMatchIn,
             "mention of a secret store" to
                 Regex(
                     "(?i)\\b(AWS_(ACCESS|SECRET)_KEY|GITHUB_TOKEN|NPM_TOKEN|id_rsa|\\.ssh/|" +
                         "\\.aws/credentials|printenv\\b|\\benv\\s*\\|)",
-                ),
-            "invisible characters" to INVISIBLE,
+                )::containsMatchIn,
+            // Not a phrase, so not this service's to define: the set is kore's (`HiddenCharacters`),
+            // shared with every service that hands an agent text it did not write. It is the set this
+            // rule used to spell out here — zero-width and bidi characters, and since M-66 the C0
+            // controls an ANSI-coloured log line carries, with tab, newline and carriage return left
+            // alone — plus what the hand-written copy missed: the directional marks, the invisible
+            // operators and the Unicode Tags block, a whole instruction in invisible copies of ASCII.
+            "invisible characters" to { text: String -> HiddenCharacters.firstIn(text) != null },
         )
 
     public fun screen(text: String?): ScreenResult {
         if (text.isNullOrEmpty()) return ScreenResult.SAFE
 
-        val hits = RULES.filter { (_, pattern) -> pattern.containsMatchIn(text) }.map { it.first }
+        val hits = RULES.filter { (_, matches) -> matches(text) }.map { it.first }
         return if (hits.isEmpty()) ScreenResult.SAFE else ScreenResult(safe = false, rules = hits)
     }
 

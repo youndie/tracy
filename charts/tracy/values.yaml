@@ -4,8 +4,8 @@ registry:
   server: ghcr.io
   org: youndie
 
-# The public hostname. Required: the MCP transport refuses any Host it was not told about,
-# and the ingress rules match on it.
+# The public hostname. Required: it is the one Host the MCP endpoint accepts — any other gets a
+# 400, and an empty list would mean Host is not checked at all — and the ingress rules match on it.
 hostname: ""
 
 server:
@@ -49,7 +49,13 @@ server:
   # 0.3.6 takes the same fix from kore (`kore-koin`, #72) together with kore 0.1.12: the 503 refusal
   # now starts with the drain instead of with the announce, the listener takes SO_REUSEADDR, and
   # stopping the probes waits for the check in flight. No setting changes.
-  version: 0.3.6
+  #
+  # 0.3.7 takes the MCP endpoint from kore (`kore-mcp`, kore 0.1.14, M-68): the token check runs on
+  # the transport's own route. MCP clients have to send `Authorization: Bearer <token>` — a bare
+  # token is refused now — and a foreign Host gets `400` with a JSON body. No setting changes, but a
+  # `TRACY_MCP_ALLOWED_HOSTS` entry that is not a host name fails the start; the chart passes
+  # `hostname`, which is one.
+  version: 0.3.7
   resources:
     requests:
       cpu: "50m"
@@ -100,7 +106,8 @@ ingest:
   key: ""
 
 # Bearer token for the MCP endpoint. Empty means the endpoint is not mounted, the Secret is not
-# created, and the ingress bypass is not rendered: the feature is off, not open.
+# created, and the ingress bypass is not rendered: the feature is off, not open. Clients send it as
+# `Authorization: Bearer <token>`; a bare token without the scheme is refused.
 mcp:
   token: ""
 

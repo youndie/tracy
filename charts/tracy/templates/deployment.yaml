@@ -63,9 +63,10 @@ spec:
                 secretKeyRef:
                   name: tracy-keys
                   key: mcp
-            # The transport refuses any Host it was not told about and defaults to localhost, so
-            # the public hostname has to be declared or every request is rejected. This failure
-            # cannot be reproduced on a developer machine, where the host always is localhost.
+            # With hosts declared, the endpoint answers any other Host with 400; with none it does
+            # not look at Host at all. The public hostname is the one host clients reach it on, so
+            # it is declared here — a check that cannot fail on a developer machine, where the host
+            # always is localhost, and the one that matters once deployed.
             - name: TRACY_MCP_ALLOWED_HOSTS
               value: {{ .Values.hostname | quote }}
             {{- end }}

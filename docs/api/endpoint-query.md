@@ -98,7 +98,7 @@ parent_feature: feature-log-search
 |---|---|
 | `POST /ingest` | `server/src/commonMain/kotlin/io/github/youndie/tracy/ingest/IngestRouting.kt` |
 | `GET /api/**` | `server/src/commonMain/kotlin/io/github/youndie/tracy/query/QueryRouting.kt` |
-| `POST /mcp` | `server/src/commonMain/kotlin/io/github/youndie/tracy/mcp/McpEndpoint.kt` |
+| `POST /mcp` | kore-mcp `installKoreMcp`, вызов в `server/src/commonMain/kotlin/io/github/youndie/tracy/server/Application.kt`; инструменты — `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/RegisterTools.kt` |
 
 ## Форма ответа `GET /api/traces/{traceId}`
 
