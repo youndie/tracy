@@ -126,8 +126,9 @@ claude mcp add --transport http tracy https://tracy.example/mcp \
   --header "Authorization: Bearer $TRACY_MCP_TOKEN"
 ```
 
-With no `TRACY_MCP_TOKEN` set on the server there is no MCP endpoint at all — the feature is off
-by default rather than open by default.
+The `Bearer ` scheme is part of the header, not decoration: a bare token without it is refused with
+`401`. With no `TRACY_MCP_TOKEN` set on the server there is no MCP endpoint at all — the feature is
+off by default rather than open by default.
 
 ## What it is not
 
@@ -163,8 +164,8 @@ by default rather than open by default.
 `charts/tracy` is a Helm chart for the server — see its [README](charts/tracy/README.md). Two
 values fail the render rather than deploying something that looks alive: an empty `ingest.key`,
 because the server refuses to start without one, and an empty `hostname`, because it renders
-``Host(` `)`` rules matching nothing and an MCP transport that refuses every request. Both
-failures are silent otherwise.
+``Host(` `)`` rules matching nothing and leaves the MCP endpoint with no host to check `Host`
+against. Both failures are silent otherwise.
 
 ## Documentation
 

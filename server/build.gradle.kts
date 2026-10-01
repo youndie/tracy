@@ -114,7 +114,10 @@ kotlin {
             implementation(ktorLibs.serialization.kotlinx.json)
             implementation(libs.sqlx4k.sqlite)
             implementation(libs.okio)
-            implementation(libs.mcp.server)
+            // The MCP endpoint and its guard. It brings the MCP SDK (0.15.0) through `api`, which is
+            // where `RegisterTools.kt` gets `Server` and the tool types from — no direct dependency on
+            // the SDK, so the two cannot be pinned to different versions.
+            implementation(libs.kore.mcp)
             implementation(project.dependencies.platform(libs.koin.bom))
             implementation(libs.koin.core)
             // koin-ktor publishes for linuxx64 and macosarm64 — checked in Central, not assumed.

@@ -15,10 +15,13 @@ import io.github.youndie.kore.lifecycle.DrainGate
 import io.github.youndie.kore.lifecycle.ShutdownDeadlines
 import io.github.youndie.kore.lifecycle.ShutdownParticipant
 import io.github.youndie.kore.lifecycle.runUntilSignal
+import io.github.youndie.kore.mcp.KoreMcpConfig
+import io.github.youndie.kore.mcp.installKoreMcp
 import io.github.youndie.tracy.server.db.WalCheckpoint
 import io.github.youndie.tracy.server.db.migrateDb
 import io.github.youndie.tracy.server.ingest.ingestRoutes
-import io.github.youndie.tracy.server.mcp.installMcp
+import io.github.youndie.tracy.server.mcp.ToolFacade
+import io.github.youndie.tracy.server.mcp.registerTools
 import io.github.youndie.tracy.server.query.queryRoutes
 import io.github.youndie.tracy.server.retention.Retention
 import io.github.youndie.tracy.server.trace.traceRoutes
@@ -33,6 +36,7 @@ import io.ktor.server.resources.Resources
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -328,7 +332,19 @@ public fun Application.module(
 
     // Installed outside `routing`: the SDK extension puts up its own routing and cannot be nested.
     // No token, no MCP at all — absence of configuration yields a closed state (research D9).
-    installMcp(config, get())
+    //
+    // The endpoint and its guard come from kore (M-68). The guard is a plugin on the transport's own
+    // route rather than an interceptor that recognises the endpoint by its path string, so whatever
+    // the router sends to the transport has been through it — `McpPathTest` holds that over a real
+    // socket. A bearer token with its `Bearer` scheme is required.
+    //
+    // If this server ever installs ContentNegotiation, it goes ABOVE this call: the SDK installs
+    // its own on the whole application when it finds none, and a later `install` throws.
+    val mcpFacade: ToolFacade = get()
+    installKoreMcp(
+        KoreMcpConfig(config.mcpToken, config.mcpAllowedHosts),
+        Implementation(name = "tracy", version = "0.1"),
+    ) { registerTools(mcpFacade) }
 
     routing {
         // MOVED FROM `/health`, WHICH IS KORE'S LIVENESS ALIAS NOW. The body is unchanged and it is

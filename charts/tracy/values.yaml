@@ -4,8 +4,8 @@ registry:
   server: ghcr.io
   org: youndie
 
-# The public hostname. Required: the MCP transport refuses any Host it was not told about,
-# and the ingress rules match on it.
+# The public hostname. Required: it is the one Host the MCP endpoint accepts — any other gets a
+# 400, and an empty list would mean Host is not checked at all — and the ingress rules match on it.
 hostname: ""
 
 server:
@@ -100,7 +100,8 @@ ingest:
   key: ""
 
 # Bearer token for the MCP endpoint. Empty means the endpoint is not mounted, the Secret is not
-# created, and the ingress bypass is not rendered: the feature is off, not open.
+# created, and the ingress bypass is not rendered: the feature is off, not open. Clients send it as
+# `Authorization: Bearer <token>`; a bare token without the scheme is refused.
 mcp:
   token: ""
 
