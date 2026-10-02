@@ -55,7 +55,11 @@ server:
   # token is refused now — and a foreign Host gets `400` with a JSON body. No setting changes, but a
   # `TRACY_MCP_ALLOWED_HOSTS` entry that is not a host name fails the start; the chart passes
   # `hostname`, which is one.
-  version: 0.3.7
+  #
+  # 0.3.8 stops the health checks before the SQLite pool closes (#78). The check loop runs
+  # `SELECT 1` through the pool but was stopped in the stage after it, so a check could start
+  # against a closed pool during shutdown. No setting changes.
+  version: 0.3.8
   resources:
     requests:
       cpu: "50m"
