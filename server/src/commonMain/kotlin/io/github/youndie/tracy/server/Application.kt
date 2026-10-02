@@ -130,17 +130,23 @@ public fun main() {
             announce(AnnounceNotReady(probes.readiness))
             drain(EngineDrain(server, DEADLINES.drain, DEADLINES.drain + 5.seconds, draining))
 
-            // Last, because every write above it goes through this pool. `ApplicationStopping` —
-            // where this would otherwise be closed — runs BEFORE the drain on Kotlin/Native and
-            // after it on the JVM, from identical source, which is the asymmetry kore is here for.
-            pool(participant("sqlite pool") { db.close().getOrThrow() })
-
-            telemetry(
+            // The health checks read the pool, so they are a consumer of it and stop in the stage
+            // BEFORE it closes. kore's order is consumers → pools → telemetry: registered as
+            // telemetry, as they were, the loop was still running after the pool had closed, and a
+            // check could start against it. Nothing is left in the telemetry stage, and that is fine:
+            // every stage runs, empty or not.
+            consumer(
                 participant("health checks") {
                     probes.stop()
                     checksScope.cancel()
                 },
             )
+
+            // After the consumers, because every write above it goes through this pool.
+            // `ApplicationStopping` — where this would otherwise be closed — runs BEFORE the drain on
+            // Kotlin/Native and after it on the JVM, from identical source, which is the asymmetry
+            // kore is here for.
+            pool(participant("sqlite pool") { db.close().getOrThrow() })
         }
     }
 }
