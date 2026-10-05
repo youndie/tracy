@@ -19,6 +19,7 @@ import io.github.youndie.kore.mcp.KoreMcpConfig
 import io.github.youndie.kore.mcp.installKoreMcp
 import io.github.youndie.tracy.server.db.WalCheckpoint
 import io.github.youndie.tracy.server.db.migrateDb
+import io.github.youndie.tracy.server.db.pinSynchronousOnEveryConnection
 import io.github.youndie.tracy.server.ingest.ingestRoutes
 import io.github.youndie.tracy.server.mcp.ToolFacade
 import io.github.youndie.tracy.server.mcp.registerTools
@@ -200,7 +201,12 @@ public fun openDatabase(
                     .build(),
         )
 
-    runBlocking { db.migrateDb() }
+    runBlocking {
+        db.migrateDb()
+        // After the migrations and before anything serves: every connection the pool may open has
+        // to carry `synchronous = NORMAL`, and the only way to reach them all is to hold them all.
+        db.pinSynchronousOnEveryConnection(maxConnections)
+    }
     return db
 }
 
