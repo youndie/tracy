@@ -1,6 +1,7 @@
 package io.github.youndie.tracy.server.query
 
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
+import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.BatchHeader
 import io.github.youndie.tracy.server.db.IngestRepository
@@ -21,7 +22,6 @@ import io.ktor.server.resources.Resources
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
-import org.koin.ktor.plugin.Koin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -60,7 +60,7 @@ class TypedRoutesTest {
         val config = ServerConfig(httpPort = 0, dbPath = "unused", ingestKey = "k")
         val server =
             embeddedServer(CIO, port = 0) {
-                install(Koin) { modules(serverModule(config, db)) }
+                installKoreKoin { modules(serverModule(config, db)) }
                 install(Resources)
                 routing {
                     queryRoutes()

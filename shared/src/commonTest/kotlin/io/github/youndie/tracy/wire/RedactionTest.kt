@@ -3,6 +3,7 @@ package io.github.youndie.tracy.wire
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RedactionTest {
@@ -124,5 +125,85 @@ class RedactionTest {
     @Test
     fun `card numbers are redacted`() {
         assertTrue("4111 1111 1111 1111" !in redactor.redactMessage("card 4111 1111 1111 1111").text)
+    }
+
+    @Test
+    fun `the id-secret gate is never narrower than its pattern`() {
+        // A gate that closes where the pattern would have matched is a leak, not a speed-up, so
+        // this is checked as an implication over generated text rather than over a few examples.
+        // The alphabet is weighted towards exactly the characters the pattern and the gate care
+        // about, and a token is spliced in often enough that matches are common.
+        val random = kotlin.random.Random(46)
+        val alphabet = "//::  abcXYZ0189_-.@?=&"
+        val token = "AAF3kQ9zX7vL2pR8mN4tY6wB"
+        var matches = 0
+        repeat(200_000) {
+            val text =
+                buildString {
+                    repeat(random.nextInt(0, 40)) { append(alphabet[random.nextInt(alphabet.length)]) }
+                    if (random.nextInt(4) == 0) append(token.take(random.nextInt(12, token.length + 1)))
+                    repeat(random.nextInt(0, 10)) { append(alphabet[random.nextInt(alphabet.length)]) }
+                }
+            if (Redactor.ID_SECRET.containsMatchIn(text)) {
+                matches++
+                assertTrue(Redactor.colonAfterFirstSlash(text), "gate closed on a text the pattern matches: \"$text\"")
+            }
+        }
+        // Without this the implication above could pass by never meeting a single match.
+        assertTrue(matches > 1_000, "the generator produced only $matches matching texts")
+    }
+
+    @Test
+    fun `a request log line does not open the id-secret gate`() {
+        // The line that, on the stand, made up four fifths of every record. Its colon belongs to
+        // the status code and precedes the path, so the pattern cannot begin anywhere in it.
+        assertFalse(Redactor.colonAfterFirstSlash("401: GET /api/user/me"))
+        assertEquals("401: GET /api/user/me", Redactor().redactMessage("401: GET /api/user/me").text)
+    }
+
+    @Test
+    fun `a bot token path still opens the gate and is still redacted`() {
+        val text = "POST https://api.telegram.org/bot123456789:AAF3kQ9zX7vL2pR8mN4tY6wB/sendMessage"
+
+        assertTrue(Redactor.colonAfterFirstSlash(text))
+        assertTrue("AAF3kQ9zX7vL2pR8mN4tY6wB" !in Redactor().redactMessage(text).text)
+    }
+
+    @Test
+    fun `the bearer gate is never narrower than its pattern`() {
+        // Same shape as the id-secret check: an implication over generated text, weighted towards
+        // what the pattern cares about — the word in mixed case, whitespace of several kinds, token
+        // characters — and salted with letters outside ASCII, because the gate folds ASCII only and
+        // that is exactly the claim to test.
+        val random = kotlin.random.Random(44)
+        val noise = "abc XYZ 01 -_.é ß ſ İ Ω\u00A0\t"
+        val spaces = listOf(" ", "  ", "\t", "\u00A0", "\u2003", "\n")
+        val tokenChars = "AbCdEf0123456789._~+/=-"
+        var matches = 0
+        repeat(200_000) {
+            val text =
+                buildString {
+                    repeat(random.nextInt(0, 12)) { append(noise[random.nextInt(noise.length)]) }
+                    if (random.nextInt(3) == 0) {
+                        "bearer".forEach { c -> append(if (random.nextBoolean()) c.uppercaseChar() else c) }
+                        append(spaces[random.nextInt(spaces.size)])
+                        repeat(random.nextInt(10, 24)) { append(tokenChars[random.nextInt(tokenChars.length)]) }
+                    }
+                    repeat(random.nextInt(0, 12)) { append(noise[random.nextInt(noise.length)]) }
+                }
+            if (Redactor.BEARER.containsMatchIn(text)) {
+                matches++
+                assertTrue(Redactor.bearerCandidate(text), "gate closed on a text the pattern matches: \"$text\"")
+            }
+        }
+        assertTrue(matches > 1_000, "the generator produced only $matches matching texts")
+    }
+
+    @Test
+    fun `short ordinary messages do not open the bearer gate`() {
+        // Both lines are shorter than any possible match, so the gate settles them on length alone.
+        assertFalse(Redactor.bearerCandidate("order created"))
+        assertFalse(Redactor.bearerCandidate("401: GET /api/user/me"))
+        assertTrue(Redactor.bearerCandidate("Authorization: BeArEr abcdefghijklmnop0123"))
     }
 }

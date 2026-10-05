@@ -4,19 +4,25 @@ import io.github.smyrgeorge.sqlx4k.ConnectionPool
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.smyrgeorge.sqlx4k.sqlite.sqlite
 import io.github.youndie.kore.generated.KoreBuildIdentity
+import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.kore.ktor.EngineDrain
 import io.github.youndie.kore.ktor.installKoreProbes
 import io.github.youndie.kore.ktor.installKoreVersion
 import io.github.youndie.kore.ktor.installShutdownRefusal
+import io.github.youndie.kore.ktor.startForKore
 import io.github.youndie.kore.lifecycle.AnnounceNotReady
+import io.github.youndie.kore.lifecycle.DrainGate
 import io.github.youndie.kore.lifecycle.ShutdownDeadlines
 import io.github.youndie.kore.lifecycle.ShutdownParticipant
 import io.github.youndie.kore.lifecycle.runUntilSignal
+import io.github.youndie.kore.mcp.KoreMcpConfig
+import io.github.youndie.kore.mcp.installKoreMcp
 import io.github.youndie.tracy.server.db.WalCheckpoint
 import io.github.youndie.tracy.server.db.migrateDb
 import io.github.youndie.tracy.server.db.pinSynchronousOnEveryConnection
 import io.github.youndie.tracy.server.ingest.ingestRoutes
-import io.github.youndie.tracy.server.mcp.installMcp
+import io.github.youndie.tracy.server.mcp.ToolFacade
+import io.github.youndie.tracy.server.mcp.registerTools
 import io.github.youndie.tracy.server.query.queryRoutes
 import io.github.youndie.tracy.server.retention.Retention
 import io.github.youndie.tracy.server.trace.traceRoutes
@@ -31,6 +37,7 @@ import io.ktor.server.resources.Resources
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,7 +49,6 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.SYSTEM
 import org.koin.ktor.ext.get
-import org.koin.ktor.plugin.Koin
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
@@ -72,6 +78,10 @@ public fun main() {
     // Migrations run in here, before anything serves and before the startup gate opens.
     val db = openDatabase(config.dbPath, config.dbMaxConnections, config.dbIdleTimeoutSeconds)
     val probes = TracyProbes(db)
+    // One gate for the refusal and the drain. The refusal used to follow readiness, which falls at
+    // the start of the announce — so it answered 503 to exactly the requests the announce wait is
+    // there to keep serving (kore B-61). `EngineDrain` opens this gate as its first act.
+    val draining = DrainGate()
 
     val server =
         embeddedServer(
@@ -88,14 +98,22 @@ public fun main() {
                 // arrives in one.
                 shutdownGracePeriod = DEADLINES.drain.inWholeMilliseconds
                 shutdownTimeout = (DEADLINES.drain + 5.seconds).inWholeMilliseconds
+                // CIO on Kotlin/Native writes SO_REUSEADDR as an explicit 0 unless told otherwise,
+                // where the JVM listens with it on (kore B-62). Without it a restart in place meets
+                // the old process's TIME_WAIT and dies at bind.
+                reuseAddress = true
             },
-            module = { module(config, db, probes) },
+            module = { module(config, db, probes, draining) },
         )
 
     // NOT `wait = true`. The main thread has to reach the await below, or the signal arrives at a
     // process with no sequence to run and it is killed at the end of the grace period instead —
     // which, from outside, is indistinguishable from having stopped.
-    server.start(wait = false)
+    //
+    // `startForKore`, not `start`: on the JVM `start` leaves Ktor's own shutdown hook on, and it
+    // stops the engine at the signal, in the middle of the announce; on native it puts kore's
+    // signal handler in place before the engine can take the signal first (kore B-60, B-63).
+    server.startForKore()
 
     val checksScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     probes.start(checksScope)
@@ -111,19 +129,25 @@ public fun main() {
             onFinished = { run -> println(run.transcript) },
         ) {
             announce(AnnounceNotReady(probes.readiness))
-            drain(EngineDrain(server, DEADLINES.drain, DEADLINES.drain + 5.seconds))
+            drain(EngineDrain(server, DEADLINES.drain, DEADLINES.drain + 5.seconds, draining))
 
-            // Last, because every write above it goes through this pool. `ApplicationStopping` —
-            // where this would otherwise be closed — runs BEFORE the drain on Kotlin/Native and
-            // after it on the JVM, from identical source, which is the asymmetry kore is here for.
-            pool(participant("sqlite pool") { db.close().getOrThrow() })
-
-            telemetry(
+            // The health checks read the pool, so they are a consumer of it and stop in the stage
+            // BEFORE it closes. kore's order is consumers → pools → telemetry: registered as
+            // telemetry, as they were, the loop was still running after the pool had closed, and a
+            // check could start against it. Nothing is left in the telemetry stage, and that is fine:
+            // every stage runs, empty or not.
+            consumer(
                 participant("health checks") {
                     probes.stop()
                     checksScope.cancel()
                 },
             )
+
+            // After the consumers, because every write above it goes through this pool.
+            // `ApplicationStopping` — where this would otherwise be closed — runs BEFORE the drain on
+            // Kotlin/Native and after it on the JVM, from identical source, which is the asymmetry
+            // kore is here for.
+            pool(participant("sqlite pool") { db.close().getOrThrow() })
         }
     }
 }
@@ -190,12 +214,13 @@ public fun Application.module(
     config: ServerConfig,
     db: ISQLite,
     probes: TracyProbes,
+    draining: DrainGate,
 ) {
     // BEFORE the probes and before the routes. An interceptor installed later would let through
     // every call that arrived first, and the one request this must not miss is the first one after
-    // readiness has gone false. kore's own routes are exempt: a 503 from `/health/live` is a failed
+    // the drain has begun. kore's own routes are exempt: a 503 from `/health/live` is a failed
     // liveness probe, which restarts the pod in the middle of the shutdown it is reporting.
-    installShutdownRefusal(isShuttingDown = { probes.readiness.isShuttingDown })
+    installShutdownRefusal(draining)
     installKoreProbes(probes.startup, probes.readiness, probes.liveness)
 
     // The version and the commit, compiled in by the Gradle plugin because Kotlin/Native has neither
@@ -203,8 +228,10 @@ public fun Application.module(
     installKoreVersion(KoreBuildIdentity)
 
     // One container, one instance of each collaborator. What this replaces: four repositories
-    // constructed twice — once for the MCP facade, once for the HTTP routes.
-    install(Koin) { modules(serverModule(config, db)) }
+    // constructed twice — once for the MCP facade, once for the HTTP routes. Not `install(Koin)`:
+    // that plugin opens a Koin scope per call, and on Kotlin/Native each one leaks a native mutex
+    // (#70, kore B-65).
+    installKoreKoin { modules(serverModule(config, db)) }
 
     // Typed routes need this installed, and the failure without it is at runtime rather than at
     // compile time — the route simply never matches.
@@ -317,7 +344,19 @@ public fun Application.module(
 
     // Installed outside `routing`: the SDK extension puts up its own routing and cannot be nested.
     // No token, no MCP at all — absence of configuration yields a closed state (research D9).
-    installMcp(config, get())
+    //
+    // The endpoint and its guard come from kore (M-68). The guard is a plugin on the transport's own
+    // route rather than an interceptor that recognises the endpoint by its path string, so whatever
+    // the router sends to the transport has been through it — `McpPathTest` holds that over a real
+    // socket. A bearer token with its `Bearer` scheme is required.
+    //
+    // If this server ever installs ContentNegotiation, it goes ABOVE this call: the SDK installs
+    // its own on the whole application when it finds none, and a later `install` throws.
+    val mcpFacade: ToolFacade = get()
+    installKoreMcp(
+        KoreMcpConfig(config.mcpToken, config.mcpAllowedHosts),
+        Implementation(name = "tracy", version = "0.1"),
+    ) { registerTools(mcpFacade) }
 
     routing {
         // MOVED FROM `/health`, WHICH IS KORE'S LIVENESS ALIAS NOW. The body is unchanged and it is

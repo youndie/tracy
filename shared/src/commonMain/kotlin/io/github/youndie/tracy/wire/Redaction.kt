@@ -118,6 +118,69 @@ public class Redactor(
                 "session",
             )
 
+        internal val BEARER: Regex = Regex("""(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}""")
+
+        /** `bearer`, one whitespace, sixteen token characters: nothing shorter can hold a match. */
+        private const val BEARER_MIN_LENGTH = 23
+
+        /**
+         * The gate for [BEARER]: long enough to hold a match, and the word in ASCII letters of any case.
+         *
+         * It replaces `contains("earer", ignoreCase = true)`, which runs for every message and every
+         * field value and turned out to be the most expensive thing on the whole redaction path.
+         * Measured on Kotlin/Native, one gate at a time: ~506 ns on `order created` and ~1 080 ns on
+         * `401: GET /api/user/me` — two thirds of all seven gates together — because case-insensitive
+         * comparison of `Char` goes through Unicode case tables for every character tried. The other
+         * six gates cost 20–130 ns each.
+         *
+         * **Necessary, and therefore safe.** A match needs at least [BEARER_MIN_LENGTH] characters,
+         * and `(?i)` folds ASCII only, so the word it matched is `bearer` in ASCII letters of some case.
+         * Neither half can close on a text the pattern matches; the test beside this checks that as an
+         * implication over generated text, including letters outside ASCII.
+         */
+        internal fun bearerCandidate(text: String): Boolean =
+            text.length >= BEARER_MIN_LENGTH && containsAsciiIgnoreCase(text, "bearer")
+
+        /** Case folding for `A`–`Z` and nothing else — which is all `(?i)` does in [BEARER]. */
+        private fun containsAsciiIgnoreCase(
+            text: String,
+            lowerNeedle: String,
+        ): Boolean {
+            val last = text.length - lowerNeedle.length
+            var i = 0
+            while (i <= last) {
+                var j = 0
+                while (j < lowerNeedle.length && asciiLower(text[i + j]) == lowerNeedle[j]) j++
+                if (j == lowerNeedle.length) return true
+                i++
+            }
+            return false
+        }
+
+        private fun asciiLower(c: Char): Char = if (c in 'A'..'Z') c + ('a' - 'A') else c
+
+        internal val ID_SECRET: Regex = Regex("""(/[^/\s]*?:)[A-Za-z0-9_-]{20,}""")
+
+        /**
+         * The gate for [ID_SECRET]: a `:` somewhere after the first `/`.
+         *
+         * **Necessary, and therefore safe.** The pattern needs a `/` followed later by a `:`. Wherever
+         * that `/` is, the first `/` of the text is no later, so a `:` follows the first one too.
+         * A gate that is ever *narrower* than its pattern is not an optimisation but a leak, which
+         * is why the test beside this checks the implication over generated text rather than a few
+         * examples.
+         *
+         * The gate it replaces was `'/' in it && ':' in it`, and on real logs that is almost always
+         * true. Measured over seven days of template counts on the stand (every record, before
+         * sampling): it opened for **80.8%** of them, because the dominant line is a request log —
+         * `401: GET /api/user/me` — whose colon belongs to the status and comes before the path, where
+         * this pattern can never begin. The gate existed; it just did not keep anything out.
+         */
+        internal fun colonAfterFirstSlash(text: String): Boolean {
+            val slash = text.indexOf('/')
+            return slash >= 0 && text.indexOf(':', slash + 1) >= 0
+        }
+
         /** Every pattern in [DEFAULT_FIELD_NAME_PATTERNS] contains one of these. */
         private val NAME_HINTS = listOf("key", "token", "secret")
 
@@ -151,15 +214,15 @@ public class Redactor(
                 ) { "://" in it && '@' in it },
                 // Bearer <token>
                 MessageRule(
-                    Regex("""(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}"""),
+                    BEARER,
                     "$1$REDACTED",
-                ) { it.contains("earer", ignoreCase = true) },
+                ) { bearerCandidate(it) },
                 // /bot123456:AAF...  — an id:secret path segment. Exactly the shape found in
                 // production logs, and common far beyond Telegram.
                 MessageRule(
-                    Regex("""(/[^/\s]*?:)[A-Za-z0-9_-]{20,}"""),
+                    ID_SECRET,
                     "$1$REDACTED",
-                ) { '/' in it && ':' in it },
+                ) { colonAfterFirstSlash(it) },
                 // ?token=... &api_key=... — masks the value, keeps the parameter name visible
                 MessageRule(
                     Regex("""(?i)([?&](?:api[_-]?key|access[_-]?token|token|secret|password|key|auth)=)[^&\s]+"""),

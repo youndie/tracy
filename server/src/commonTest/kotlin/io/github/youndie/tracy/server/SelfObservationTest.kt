@@ -32,6 +32,18 @@ class SelfObservationTest {
             clock = { day + 1 },
         )
 
+    private fun observation(
+        db: ISQLite,
+        runId: String,
+    ) = SelfObservation(
+        acceptBatch = IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day }),
+        service = "tracy-server",
+        instanceId = "pod-a",
+        release = "0.1.0",
+        clock = { day + 1 },
+        runId = runId,
+    )
+
     @Test
     fun `tracy appears in its own list of services`() =
         runTest {
@@ -39,7 +51,7 @@ class SelfObservationTest {
 
             observation(db).log(Level.INFO, "Boot", "tracy started")
 
-            val services = QueryRepository(db).listServices()
+            val services = QueryRepository(db, clock = { day }).listServices()
             assertEquals(listOf("tracy-server"), services.map { it.name })
         }
 
@@ -49,7 +61,7 @@ class SelfObservationTest {
             val db = freshDb()
             observation(db).log(Level.INFO, "Retention", "retention swept", mapOf("liveDays" to "3"))
 
-            val found = QueryRepository(db).searchLogs(since = 0, until = Long.MAX_VALUE)
+            val found = QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE)
 
             assertEquals(1, found.items.size)
             assertEquals("retention swept", found.items.first().message)
@@ -65,8 +77,36 @@ class SelfObservationTest {
             self.log(Level.INFO, "Boot", "first")
             self.log(Level.INFO, "Boot", "second")
 
-            val found = QueryRepository(db).searchLogs(since = 0, until = Long.MAX_VALUE)
+            val found = QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE)
             assertEquals(listOf("first", "second"), found.items.map { it.message })
+        }
+
+    @Test
+    fun `a restarted process in the same pod keeps its own logs`() =
+        runTest {
+            val db = freshDb()
+
+            // Two processes with one HOSTNAME: a container restarted inside the same pod. Each
+            // starts its sequence from zero, so only the run tells their batches apart (#66).
+            observation(db).log(Level.INFO, "Boot", "first start")
+            observation(db).log(Level.INFO, "Boot", "second start")
+
+            val found = QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE)
+            assertEquals(listOf("first start", "second start"), found.items.map { it.message }.sorted())
+        }
+
+    @Test
+    fun `without a run the restarted process is dropped as a duplicate`() =
+        runTest {
+            val db = freshDb()
+
+            // The control for the test above: the same two starts keyed the old way lose the
+            // second one, so that test can tell the fix from its absence.
+            observation(db, runId = "").log(Level.INFO, "Boot", "first start")
+            observation(db, runId = "").log(Level.INFO, "Boot", "second start")
+
+            val found = QueryRepository(db, clock = { day }).searchLogs(since = 0, until = Long.MAX_VALUE)
+            assertEquals(listOf("first start"), found.items.map { it.message })
         }
 
     @Test
@@ -79,7 +119,7 @@ class SelfObservationTest {
             observation(db).log(Level.WARN, "Boot", "upstream https://user:hunter2@example.com failed")
 
             val message =
-                QueryRepository(db)
+                QueryRepository(db, clock = { day })
                     .searchLogs(since = 0, until = Long.MAX_VALUE)
                     .items
                     .first()
@@ -96,7 +136,7 @@ class SelfObservationTest {
             self.log(Level.INFO, "Retention", "retention swept")
             self.log(Level.INFO, "Retention", "retention swept")
 
-            val stats = QueryRepository(db).templateStats(since = 0, until = Long.MAX_VALUE)
+            val stats = QueryRepository(db, clock = { day }).templateStats(since = 0, until = Long.MAX_VALUE)
 
             // Found by pointing a real MCP client at the deployed server: the records showed up
             // in search_logs and `top_templates` answered nothing, so "how often does retention
@@ -128,7 +168,7 @@ class SelfObservationTest {
             // everyone else's.
             broken.log(Level.INFO, "Boot", "started")
 
-            assertEquals(0, QueryRepository(db).listServices().size)
+            assertEquals(0, QueryRepository(db, clock = { day }).listServices().size)
         }
 
     private fun openBrokenDatabase(): ISQLite =

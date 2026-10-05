@@ -21,24 +21,49 @@ import org.koin.ktor.ext.inject
 @Serializable
 public data class ServiceSummary(
     public val name: String,
+    /**
+     * Instances that reported inside [windowMs] — the ones writing now, not the ones that ever did.
+     *
+     * A row in `instance` is a pod *generation*: the recommended `instanceId` is the pod name, which
+     * is unique per generation, and nothing deletes those rows. Counting them all answered "how many
+     * deploys has this service had" under the name "instances": on the stand it read 67 for a
+     * service running one pod.
+     */
     public val instances: Int,
+    /** Every generation ever seen. The number the old `instances` was, under a name that says so. */
+    public val instancesEverSeen: Int,
+    /** The window [instances], [maxClockSkewMs] and [maxRecordAgeMs] were taken over. */
+    public val windowMs: Long,
     public val lastSeen: Long,
     /** What the service made, before sampling: the "who is noisy" number (research D13). */
     public val producedBytes: Long,
     /** What survived to disk. The gap between the two is the point of showing both. */
     public val storedRecords: Long,
-    /** Difference between the agent's clock and the server's — see `X-Tracy-Sent`. */
-    public val maxClockSkewMs: Long,
+    /**
+     * Difference between the agent's clock and the server's — see `X-Tracy-Sent` — across the
+     * instances inside [windowMs].
+     *
+     * **Absent when no instance reported inside the window**, because a missing field says "nobody
+     * to ask" and a zero says "the clocks agree". Taken over every generation ever, this field was
+     * a maximum that could only rise: 61 014 ms on the stand, unchanged across four days of healthy
+     * traffic, left behind by a pod deleted weeks earlier — under which a fresh twenty-second skew
+     * would have been invisible.
+     */
+    public val maxClockSkewMs: Long? = null,
     /**
      * How long the oldest record of a batch waited before it went out: the flush interval plus
      * any retry. A large value here is a delivery problem, and before M-110 it was being reported
      * as a clock problem instead.
      */
-    public val maxRecordAgeMs: Long = 0,
+    public val maxRecordAgeMs: Long? = null,
     /**
      * Batches the server skipped because it had already stored that key. A few are ordinary —
      * an agent retrying after a lost response. A number that climbs while `producedBytes` stands
      * still is the shape of M-111, and it is here so that shape is visible at a glance.
+     *
+     * **Cumulative, unlike the three windowed fields above**, and deliberately: it is a counter of
+     * events, not a reading of a current state, and a counter that forgets cannot be compared with
+     * its earlier self.
      */
     public val duplicateBatches: Long = 0,
     /** References per entity key — the number that shows a key filling the database. */
@@ -210,11 +235,25 @@ private suspend fun ApplicationCall.unknownKey(unknown: EntityLookup.KeyNotIndex
 }
 
 /**
+ * How far back an instance counts as reporting.
+ *
+ * A day, because the question this endpoint answers is "who is writing now", and the coarsest
+ * normal rhythm an agent has is the minute window of its template counters — anything quieter than
+ * a day is a service that has stopped, which `lastSeen` says on its own and without a window.
+ */
+internal const val INSTANCE_WINDOW_MILLIS: Long = 24 * 60 * 60 * 1000L
+
+/**
  * Kept as a free function rather than folded into the repository because it reaches across every
  * partition table by name — see [QueryRepository.listServices], which is what callers use.
  */
-internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
+internal suspend fun serviceSummaries(
+    db: ISQLite,
+    now: Long,
+    windowMs: Long = INSTANCE_WINDOW_MILLIS,
+): List<ServiceSummary> =
     TransactionContext.withCurrent(db) {
+        val since = now - windowMs
         val partitions =
             fetchAll("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'log_entry_%'")
                 .getOrThrow()
@@ -227,12 +266,21 @@ internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
                 .rows
                 .map { it.get(0).asString() }
 
+        // `max(CASE ...)` rather than a `WHERE`: the service still has to appear when none of its
+        // instances is inside the window, and then the maxima come back NULL — which is the answer,
+        // and a different answer from zero.
         fetchAll(
-            """SELECT v.id, v.name, v.last_seen, count(i.id), coalesce(max(i.clock_skew_ms), 0),
-                      coalesce(max(i.record_age_ms), 0),
-                      coalesce(sum(i.duplicate_batches), 0)
-               FROM service v LEFT JOIN instance i ON i.service_id = v.id
-               GROUP BY v.id ORDER BY v.name""",
+            Statement
+                .create(
+                    """SELECT v.id, v.name, v.last_seen,
+                              count(i.id),
+                              coalesce(sum(CASE WHEN i.last_seen >= :since THEN 1 ELSE 0 END), 0),
+                              max(CASE WHEN i.last_seen >= :since THEN i.clock_skew_ms END),
+                              max(CASE WHEN i.last_seen >= :since THEN i.record_age_ms END),
+                              coalesce(sum(i.duplicate_batches), 0)
+                         FROM service v LEFT JOIN instance i ON i.service_id = v.id
+                        GROUP BY v.id ORDER BY v.name""",
+                ).apply { bind("since", since) },
         ).getOrThrow().rows.map { row ->
             val serviceId = row.get(0).asLong()
             var stored = 0L
@@ -268,15 +316,17 @@ internal suspend fun serviceSummaries(db: ISQLite): List<ServiceSummary> =
 
             ServiceSummary(
                 name = row.get(1).asString(),
-                instances = row.get(3).asLong().toInt(),
+                instances = row.get(4).asLong().toInt(),
+                instancesEverSeen = row.get(3).asLong().toInt(),
+                windowMs = windowMs,
                 lastSeen = row.get(2).asLong(),
                 // Two numbers, and the gap between them is the point: produced is what the service
                 // made, stored is what tracy decided to keep (research D13).
                 producedBytes = produced,
                 storedRecords = stored,
-                maxClockSkewMs = row.get(4).asLongOrNull() ?: 0,
-                maxRecordAgeMs = row.get(5).asLongOrNull() ?: 0,
-                duplicateBatches = row.get(6).asLongOrNull() ?: 0,
+                maxClockSkewMs = row.get(5).asLongOrNull(),
+                maxRecordAgeMs = row.get(6).asLongOrNull(),
+                duplicateBatches = row.get(7).asLongOrNull() ?: 0,
                 entityRefs = refs,
             )
         }

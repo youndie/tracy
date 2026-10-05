@@ -62,7 +62,7 @@ public class EntityKeyBudget(
         if (window.count <= refsPerMinute) return
         if (isSuppressed(serviceId, keyName)) return
 
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO entity_key_suppressed (key_id, service_id, since, observed_per_minute, last_seen)
@@ -111,7 +111,7 @@ public class EntityKeyBudget(
                 ).getOrThrow().rows
             if (rows.isEmpty()) return@withCurrent false
 
-            execute(
+            executeOrThrow(
                 Statement
                     .create(
                         """DELETE FROM entity_key_suppressed
@@ -129,7 +129,7 @@ public class EntityKeyBudget(
     public suspend fun expireStale() {
         val cutoff = clock() - suppressedTtlMillis
         TransactionContext.withCurrent(db) {
-            execute(
+            executeOrThrow(
                 Statement
                     .create("DELETE FROM entity_key_suppressed WHERE last_seen < :cutoff")
                     .apply { bind("cutoff", cutoff) },

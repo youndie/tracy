@@ -29,7 +29,7 @@ parent_feature: feature-log-search
 | Метод и путь | Auth-tier | Назначение |
 |---|---|---|
 | `POST /ingest` | `X-Tracy-Key` | приём батча, [protocol-ingest](protocol-ingest.md) |
-| `GET /api/services` | заголовки reverse proxy | сервисы, инстансы, последняя активность, **произведено и сохранено байт**, расхождение часов и возраст записей, `duplicateBatches`, число ссылок на ключ |
+| `GET /api/services` | заголовки reverse proxy | сервисы, инстансы, последняя активность, **произведено и сохранено байт**, расхождение часов и возраст записей, `duplicateBatches`, число ссылок на ключ. `instances`, `maxClockSkewMs` и `maxRecordAgeMs` считаются **по окну** `windowMs` (сутки) — по тем поколениям пода, что отчитывались в нём; `instancesEverSeen` — сколько их было всего. Нет инстанса в окне — полей расхождения **нет в ответе** вовсе: отсутствие значит «некого спросить», ноль значил бы «часы сходятся». `lastSeen` и `duplicateBatches` окном не ограничены |
 | `GET /api/logs` | заголовки reverse proxy | поиск: `service`, `instance`, `level`, `since`, `until`, `q`, `templateId`, `exceptionClass`, `traceId`, `entityKey`+`entityValue`, `limit` |
 | `GET /api/spans` | заголовки reverse proxy | поиск по спанам: `service`, `name`, `minDurationMs`, `onlyErrors`, `since`, `until`, `limit` |
 | `GET /api/entities/{key}/{value}` | заголовки reverse proxy | хронология сущности по всем сервисам и трассам |
@@ -40,7 +40,7 @@ parent_feature: feature-log-search
 | `GET /health/startup` | нет | защёлка старта: `200` после миграций и запуска движка, дальше всегда `200` |
 | `GET /health/ready` | нет | готовность: проверка базы (`SELECT 1`) **и** защёлка остановки; `503` в обоих случаях |
 | `GET /health/live` | нет | живость. `GET /health` — её же алиас, сохранённый для чартов, которые его называют |
-| `GET /health/retention` | нет | состояние ретенции: размер БД, **размер WAL** (`walBytes` — в `databaseBytes` он не входит, см. M-137), старейшая запись, вытеснение, подавленные ключи. Было телом `/health` до 0.3 |
+| `GET /health/retention` | нет | состояние ретенции: размер файла (`databaseBytes`) и занятое в нём (`usedBytes` — с ним и сравнивается потолок), **размер WAL** (`walBytes` — в `databaseBytes` он не входит, см. M-137), старейшая запись, вытеснение, сметённые маркеры батчей (`markersDropped` — накопительно с запуска), подавленные ключи. Было телом `/health` до 0.3 |
 | `GET /version` | нет | версия, коммит и время сборки, вкомпилированные в бинарь |
 | `POST /mcp` | `Authorization: Bearer` | MCP, [mcp-tools](mcp-tools.md); маршрута нет, если токен не задан |
 
@@ -98,7 +98,7 @@ parent_feature: feature-log-search
 |---|---|
 | `POST /ingest` | `server/src/commonMain/kotlin/io/github/youndie/tracy/ingest/IngestRouting.kt` |
 | `GET /api/**` | `server/src/commonMain/kotlin/io/github/youndie/tracy/query/QueryRouting.kt` |
-| `POST /mcp` | `server/src/commonMain/kotlin/io/github/youndie/tracy/mcp/McpEndpoint.kt` |
+| `POST /mcp` | kore-mcp `installKoreMcp`, вызов в `server/src/commonMain/kotlin/io/github/youndie/tracy/server/Application.kt`; инструменты — `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/RegisterTools.kt` |
 
 ## Форма ответа `GET /api/traces/{traceId}`
 

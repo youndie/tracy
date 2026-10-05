@@ -14,6 +14,30 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
  *
  * Every lookup is memoised, because the same handful of ids is needed for every line of every
  * batch and a round trip per line would dominate the write path.
+ *
+ * **Nothing evicts any of this, and nothing sweeps the rows underneath it.** Retention drops day
+ * partitions and trims `template_count` and `ingest_batch`; these five tables are outside it. The
+ * bound is therefore the number of distinct names seen since the process started, not any age.
+ * There used to be a `clear()` here whose comment promised eviction "when a partition is removed",
+ * and it had no caller — the sentence described a sweep nobody had written.
+ *
+ * Measured on the stand at forty-one days, because a bound worth stating is worth a number:
+ * `instance` 232 rows / 16 KB, `log_template` 2 548 rows / 811 KB, `service` 7, `entity_key` 4,
+ * `exception_class` 1 — about 835 KB of tables and some 2 800 entries in the maps.
+ *
+ * Two of the five grow differently, and the difference is the whole of it:
+ *
+ * - **templates are bounded by the shapes a codebase can write.** 2 548 for seven services is
+ *   research D8 holding: messages really are repeated constants, and the set converges;
+ * - **instances are bounded by nothing.** The recommended `instanceId` is the pod name
+ *   (docs/services/tracy-agent.md), which is unique per generation, so every deploy and every
+ *   restart adds a row and an entry that never leave — measured at 5.7 a day across those seven
+ *   services. Ten years of that is tens of thousands of rows, which is why this is written down
+ *   rather than swept: at that size a sweep would cost more than it saves, and it would have to
+ *   decide what to do about ids that live partitions still point at.
+ *
+ * What the accumulation does damage to is not memory but the summary built over these rows — see
+ * `serviceSummaries`, which counts every generation ever seen as an instance.
  */
 public class Dictionaries {
     private val services = mutableMapOf<String, Long>()
@@ -28,7 +52,7 @@ public class Dictionaries {
         now: Long,
     ): Long {
         services[name]?.let { id ->
-            executor.execute(
+            executor.executeOrThrow(
                 Statement
                     .create("UPDATE service SET last_seen = :now WHERE id = :id")
                     .apply {
@@ -38,7 +62,7 @@ public class Dictionaries {
             )
             return id
         }
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     """INSERT INTO service (name, first_seen, last_seen) VALUES (:name, :now, :now)
@@ -63,7 +87,7 @@ public class Dictionaries {
     ): Long {
         val cached = instances[serviceId to name]
         if (cached == null) {
-            executor.execute(
+            executor.executeOrThrow(
                 Statement
                     .create(
                         """INSERT INTO instance (service_id, name, last_seen, clock_skew_ms, record_age_ms)
@@ -88,7 +112,7 @@ public class Dictionaries {
             instances[serviceId to name] = id
             return id
         }
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create(
                     "UPDATE instance SET last_seen = :now, clock_skew_ms = :skew, record_age_ms = :age WHERE id = :id",
@@ -128,9 +152,9 @@ public class Dictionaries {
             executor
                 .fetchAll(
                     Statement.create("SELECT id FROM log_template WHERE text = :text").apply { bind("text", text) },
-                ).getOrNull()
-                ?.rows
-                ?.getOrNull(0)
+                ).getOrThrow()
+                .rows
+                .getOrNull(0)
                 ?.get(0)
                 ?.asLong()
 
@@ -139,11 +163,11 @@ public class Dictionaries {
             return existing
         }
 
-        executor.execute(
+        executor.executeOrThrow(
             Statement.create("INSERT INTO log_template (text) VALUES (:text)").apply { bind("text", text) },
         )
         val id = selectId(executor, "SELECT id FROM log_template WHERE text = :text", "text", text)
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create("INSERT INTO template_fts (rowid, text) VALUES (:id, :text)")
                 .apply {
@@ -162,7 +186,7 @@ public class Dictionaries {
         name: String,
     ): Long {
         cache[name]?.let { return it }
-        executor.execute(
+        executor.executeOrThrow(
             Statement
                 .create("INSERT INTO $table (name) VALUES (:name) ON CONFLICT(name) DO NOTHING")
                 .apply { bind("name", name) },
@@ -190,13 +214,4 @@ public class Dictionaries {
             .first()
             .get(0)
             .asLong()
-
-    /** Dropped when a partition is removed or the process restarts; ids themselves never change. */
-    public fun clear() {
-        services.clear()
-        instances.clear()
-        exceptionClasses.clear()
-        entityKeys.clear()
-        templates.clear()
-    }
 }

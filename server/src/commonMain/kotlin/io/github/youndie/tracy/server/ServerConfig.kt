@@ -17,6 +17,17 @@ class ServerConfig(
     /** One retention, not one per level: two ages in one table cannot both be a DROP (research D6). */
     val retentionDays: Int = 30,
     val countsRetentionDays: Int = 90,
+    /**
+     * How long a batch marker outlives the batch it marks.
+     *
+     * Deliberately not tied to [retentionDays]: a marker answers "have I already stored this
+     * batch", and that question dies with the agent's last retry, not with the records. Two days is
+     * chosen against the retry that can arrive latest — an agent holding a batch it never saw a
+     * `202` for keeps asking every minute for as long as the server is unreachable, so the horizon
+     * has to cover an outage, and a couple of days covers one nobody slept through. Below that
+     * window a deleted marker turns a lawful retry into duplicated records.
+     */
+    val markersRetentionDays: Int = 2,
     val maxDbBytes: Long = 4L * 1024 * 1024 * 1024,
     /** MCP is not installed at all when this is null: closed by default, not open. */
     val mcpToken: String? = null,
@@ -86,16 +97,43 @@ class ServerConfig(
             // is indistinguishable from a healthy one until the first incident.
             require(ingestKey.isNotBlank()) { "TRACY_INGEST_KEY is required" }
 
+            // The same argument applied to numbers. `?.toLongOrNull() ?: default` cannot tell
+            // "unset" from "set to something unreadable", and answers both with the default — so a
+            // value the operator did set, and can see in the pod spec, quietly does not apply.
+            //
+            // It is not hypothetical. The chart rendered `TRACY_DB_MAX_BYTES` through Helm's YAML
+            // number, which is a float, so the pod carried `6.442450944e+09`; the server parsed
+            // nothing, took its own 4 GiB, and `/health/retention` reported that 4 GiB back. Six
+            // weeks, with the right number in values.yaml the whole time.
+            fun long(name: String): Long? {
+                val text = read(name)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+                val value = text.toLongOrNull()
+                requireNotNull(value) {
+                    "$name is set to \"$text\", which is not a whole number. A Helm value written " +
+                        "as a plain YAML number arrives like this unless the chart renders it with `int64`."
+                }
+                return value
+            }
+
+            fun int(name: String): Int? =
+                long(name)?.let {
+                    require(it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+                        "$name is set to $it, which does not fit in an int"
+                    }
+                    it.toInt()
+                }
+
             return ServerConfig(
-                httpPort = read("TRACY_HTTP_PORT")?.toIntOrNull() ?: 8080,
+                httpPort = int("TRACY_HTTP_PORT") ?: 8080,
                 dbPath = read("TRACY_DB_PATH") ?: "/data/tracy.db",
                 ingestKey = ingestKey,
-                maxBatchBytes = read("TRACY_MAX_BATCH_BYTES")?.toIntOrNull() ?: (1024 * 1024),
-                entityRefsPerMinute = read("TRACY_ENTITY_REFS_PER_MINUTE")?.toIntOrNull() ?: 2000,
-                suppressedTtlDays = read("TRACY_SUPPRESSED_TTL_DAYS")?.toLongOrNull() ?: 14,
-                retentionDays = read("TRACY_RETENTION_DAYS")?.toIntOrNull() ?: 30,
-                countsRetentionDays = read("TRACY_RETENTION_COUNTS_DAYS")?.toIntOrNull() ?: 90,
-                maxDbBytes = read("TRACY_DB_MAX_BYTES")?.toLongOrNull() ?: (4L * 1024 * 1024 * 1024),
+                maxBatchBytes = int("TRACY_MAX_BATCH_BYTES") ?: (1024 * 1024),
+                entityRefsPerMinute = int("TRACY_ENTITY_REFS_PER_MINUTE") ?: 2000,
+                suppressedTtlDays = long("TRACY_SUPPRESSED_TTL_DAYS") ?: 14,
+                retentionDays = int("TRACY_RETENTION_DAYS") ?: 30,
+                countsRetentionDays = int("TRACY_RETENTION_COUNTS_DAYS") ?: 90,
+                markersRetentionDays = int("TRACY_RETENTION_MARKERS_DAYS") ?: 2,
+                maxDbBytes = long("TRACY_DB_MAX_BYTES") ?: (4L * 1024 * 1024 * 1024),
                 mcpToken = read("TRACY_MCP_TOKEN")?.takeIf { it.isNotBlank() },
                 mcpAllowedHosts =
                     read("TRACY_MCP_ALLOWED_HOSTS")
@@ -106,14 +144,14 @@ class ServerConfig(
                 selfService = read("TRACY_SELF_SERVICE")?.takeIf { it.isNotBlank() },
                 instanceId = read("HOSTNAME")?.takeIf { it.isNotBlank() } ?: "local",
                 dbMaxConnections =
-                    read("TRACY_DB_MAX_CONNECTIONS")?.toIntOrNull()?.takeIf { it > 0 }
+                    int("TRACY_DB_MAX_CONNECTIONS")?.takeIf { it > 0 }
                         ?: DEFAULT_DB_MAX_CONNECTIONS,
-                dbIdleTimeoutSeconds = read("TRACY_DB_IDLE_TIMEOUT_SECONDS")?.toLongOrNull()?.takeIf { it > 0 },
+                dbIdleTimeoutSeconds = long("TRACY_DB_IDLE_TIMEOUT_SECONDS")?.takeIf { it > 0 },
                 walCheckpointSeconds =
-                    read("TRACY_WAL_CHECKPOINT_SECONDS")?.toLongOrNull()?.takeIf { it >= 0 }
+                    long("TRACY_WAL_CHECKPOINT_SECONDS")?.takeIf { it >= 0 }
                         ?: DEFAULT_WAL_CHECKPOINT_SECONDS,
                 walMaxBytes =
-                    read("TRACY_WAL_MAX_BYTES")?.toLongOrNull()?.takeIf { it > 0 } ?: DEFAULT_WAL_MAX_BYTES,
+                    long("TRACY_WAL_MAX_BYTES")?.takeIf { it > 0 } ?: DEFAULT_WAL_MAX_BYTES,
             )
         }
     }

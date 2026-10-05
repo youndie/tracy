@@ -62,6 +62,12 @@ class IdempotencyKeyTest {
             assertEquals(1, second.accepted)
             assertTrue(!second.duplicate)
             assertEquals(2, db.scalar("SELECT count(*) FROM log_entry_20260801"))
+
+            // The marker, and not only the records. V4 put `run` into a unique index and left
+            // `PRIMARY KEY (instance_id, seq)` underneath it, so this insert collided on every
+            // batch of the second generation — and a discarded `Result` made that look like
+            // success. The records landed without the row that makes their resend free.
+            assertEquals(2, db.scalar("SELECT count(*) FROM ingest_batch"))
         }
 
     @Test

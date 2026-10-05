@@ -1,19 +1,20 @@
 [versions]
-# The shared build conventions. One number: every sborka plugin below takes its version from here.
-sborka = "0.4.0.57"
-kotlin = "2.4.10"
+# The shared build conventions. One number: every sborka plugin below takes its version from here,
+# and so does the compiler — the `wip` catalog this release publishes carries `kotlin`, which is why
+# there is no Kotlin version in this file to drift from the rest of the portfolio.
+sborka = "0.4.0.111"
 # kore: the process lifecycle of a server binary — ordered shutdown, three probes, /version. One
-# number for the two libraries and the Gradle plugin that generates the build identity: they are
+# number for the libraries and the Gradle plugin that generates the build identity: they are
 # published together, and a plugin from one version with a library from another would compile and
-# then disagree about the object it generates.
-kore = "0.1.4"
+# then disagree about the object it generates. kore-mcp rides the same number: 0.1.13 and 0.1.14 add
+# a reproducible build time and the MCP module, and change nothing in the lifecycle tracy wires up.
+kore = "0.1.14"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerializationJson = "1.11.0"
 kotlinxDatetime = "0.8.0"
 okio = "3.18.2"
 sqlx4k = "1.13.1"
 kotlinLogging = "8.0.4"
-mcpSdk = "0.15.0"
 koin = "4.2.2"
 logback = "1.6.3"
 ktlintPlugin = "14.2.0"
@@ -23,6 +24,8 @@ ktlint = "1.8.0"
 [libraries]
 kore-core = { module = "io.github.youndie:kore-core", version.ref = "kore" }
 kore-ktor = { module = "io.github.youndie:kore-ktor", version.ref = "kore" }
+kore-koin = { module = "io.github.youndie:kore-koin", version.ref = "kore" }
+kore-mcp = { module = "io.github.youndie:kore-mcp", version.ref = "kore" }
 
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
@@ -32,7 +35,6 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 sqlx4k-sqlite = { module = "io.github.smyrgeorge:sqlx4k-sqlite", version.ref = "sqlx4k" }
 kotlin-logging = { module = "io.github.oshai:kotlin-logging", version.ref = "kotlinLogging" }
-mcp-server = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcpSdk" }
 koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin" }
 koin-core = { module = "io.insert-koin:koin-core" }
 koin-ktor = { module = "io.insert-koin:koin-ktor" }
@@ -44,6 +46,4 @@ sborkaKmp = { id = "io.github.youndie.sborka.kmp", version.ref = "sborka" }
 sborkaLint = { id = "io.github.youndie.sborka.lint", version.ref = "sborka" }
 sborkaParity = { id = "io.github.youndie.sborka.parity", version.ref = "sborka" }
 sborkaPublish = { id = "io.github.youndie.sborka.publish", version.ref = "sborka" }
-kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
-pluginSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktlintPlugin = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }

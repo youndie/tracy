@@ -32,13 +32,46 @@ port=18080
 sample_every=10
 idle_tail=180
 
+mkdir -p "$out"
+
+# ---------------------------------------------------------------- the stand's own guards
+#
+# THREE MEASUREMENTS WERE LOST TO THE STAND RATHER THAN TO THE SERVER, and all three the same way:
+# something outlived the run it belonged to. A stale copy of this script did not pass EXTRA into the
+# container, so a pair compared two images instead of two settings. A container left over from
+# another run was background for one arm of a pair and not for the other. And a waiter left armed
+# from a cancelled pair started a second B arm on top of a running one — `docker rm -f` below made
+# that silent, because the newcomer simply took the name.
+#
+# So: refuse rather than clean up. Every one of these is a state the operator has to see.
+
+# One run at a time, enforced by the filesystem rather than by intention. The lock is held for as
+# long as this script lives, so a second invocation — a person's or a forgotten background job's —
+# fails here instead of halfway through somebody else's measurement.
+exec 9>"$out/.soak.lock"
+flock -n 9 || { echo "soak: another run holds $out/.soak.lock — it is still measuring" >&2; exit 1; }
+
+leftover=$(docker ps -aq --filter "name=^${name}$")
+[ -z "$leftover" ] || {
+    echo "soak: a container named $name already exists ($leftover)." >&2
+    echo "soak: that is either a run in flight or the remains of one. Look at it, then:" >&2
+    echo "soak:   docker rm -f $name" >&2
+    exit 1
+}
+
+k6s=$(docker ps -q --filter ancestor=grafana/k6:latest)
+[ -z "$k6s" ] || {
+    echo "soak: a k6 container is still running ($k6s) — a load generator from an earlier run" >&2
+    echo "soak: would be hitting this one's server. Stop it first." >&2
+    exit 1
+}
+
 data=$out/data-$label
 rm -rf "$data"; mkdir -p "$data"
 samples=$out/samples-$label.tsv
 comms=$out/comms-$label.txt
 : > "$samples"; : > "$comms"
 
-docker rm -f $name >/dev/null 2>&1
 # shellcheck disable=SC2086  # EXTRA is a list of docker flags on purpose.
 docker run -d --name $name --network tracy-net \
   --memory="$mem" --memory-swap="$mem" --cpus=1 \
@@ -54,6 +87,22 @@ for _ in $(seq 1 60); do
 done
 [ "$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$port/health/ready)" = "200" ] || {
     echo "soak: the server never became ready" >&2; docker logs $name 2>&1 | tail -20 >&2; exit 1; }
+
+# WHAT THE CONTAINER ACTUALLY GOT, read back from the container rather than from this script's
+# variables — and checked, because reading it and not looking is what happened the first time.
+env_actual=$(docker inspect $name --format '{{range .Config.Env}}{{println .}}{{end}}')
+printf 'soak: %s env:\n%s\n' "$label" "$(printf '%s' "$env_actual" | sed 's/^/soak:   /')" | tee -a "$out/env.log"
+for pair in ${EXTRA:-}; do
+    case "$pair" in
+        -e) continue ;;
+        *=*) printf '%s' "$env_actual" | grep -qxF "$pair" || {
+                echo "soak: EXTRA asked for $pair and the container does not have it." >&2
+                echo "soak: an old copy of this script is the usual reason. Nothing measured here would mean anything." >&2
+                docker rm -f $name >/dev/null 2>&1
+                exit 1
+            } ;;
+    esac
+done
 
 pid=$(docker inspect -f '{{.State.Pid}}' $name)
 cg=/sys/fs/cgroup$(awk -F: '/^0::/{print $3}' /proc/$pid/cgroup)

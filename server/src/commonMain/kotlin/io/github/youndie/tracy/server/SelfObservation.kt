@@ -30,6 +30,15 @@ public class SelfObservation(
     private val release: String?,
     private val clock: () -> Long,
     private val redactor: Redactor = Redactor(),
+    /**
+     * One run of this process, for the same reason the agent sends `X-Tracy-Run` (M-111). The
+     * instance is the pod's `HOSTNAME`, and a container restarted inside the same pod keeps it
+     * while [seq] starts again from zero: keyed without a run, the new process's first batches
+     * matched the old one's markers and were dropped as duplicates — 423 of them on the stand,
+     * all from one pod during the OOM restarts of 0.3.0. The server lost its own logs exactly
+     * after a restart, when they mattered most (#66).
+     */
+    private val runId: String = randomRunId(),
 ) {
     private var seq: Long = 0
 
@@ -87,6 +96,7 @@ public class SelfObservation(
                     instance = instanceId,
                     release = release,
                     seq = seq,
+                    runId = runId,
                 ),
                 listOf(record, counter),
             )
@@ -99,3 +109,10 @@ public class SelfObservation(
 }
 
 private const val MINUTE_MILLIS: Long = 60_000
+
+@OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+private fun randomRunId(): String =
+    kotlin.uuid.Uuid
+        .random()
+        .toHexString()
+        .take(16)

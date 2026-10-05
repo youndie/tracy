@@ -3,6 +3,7 @@ package io.github.youndie.tracy.server
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.youndie.tracy.server.db.EntityKeyBudget
 import io.github.youndie.tracy.server.db.IngestRepository
+import io.github.youndie.tracy.server.db.Partitions
 import io.github.youndie.tracy.server.db.WalCheckpoint
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
 import io.github.youndie.tracy.server.mcp.ToolFacade
@@ -45,10 +46,11 @@ public fun serverModule(
                 clock = { currentTimeMillis() },
             )
         }
-        single { IngestRepository(db, budget = get(), clock = { currentTimeMillis() }) }
+        single { Partitions() }
+        single { IngestRepository(db, partitions = get(), budget = get(), clock = { currentTimeMillis() }) }
         single { IngestBatchUseCase(get(), clock = { currentTimeMillis() }) }
 
-        single { QueryRepository(db) }
+        single { QueryRepository(db, clock = { currentTimeMillis() }) }
         single { TraceRepository(db) }
         single { SpanSearchRepository(db) }
         single { EntityRepository(db) }
@@ -59,9 +61,11 @@ public fun serverModule(
         single {
             Retention(
                 db = db,
+                partitions = get(),
                 walBytes = get<WalCheckpoint>()::walBytes,
                 retentionDays = config.retentionDays,
                 countsRetentionDays = config.countsRetentionDays,
+                markersRetentionDays = config.markersRetentionDays,
                 maxBytes = config.maxDbBytes,
                 clock = { currentTimeMillis() },
             )

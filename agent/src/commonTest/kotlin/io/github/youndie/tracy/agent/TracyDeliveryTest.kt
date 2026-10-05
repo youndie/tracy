@@ -2,6 +2,7 @@ package io.github.youndie.tracy.agent
 
 import io.github.youndie.tracy.wire.IngestHeaders
 import io.github.youndie.tracy.wire.Level
+import io.github.youndie.tracy.wire.NdJson
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
@@ -31,14 +32,17 @@ class TracyDeliveryTest {
         var calls = 0
     }
 
-    private fun config(endpoint: String) =
-        AgentConfig(
-            service = "orders-api",
-            apiKey = "tr_live_key",
-            endpoint = endpoint,
-            instanceId = "i1",
-            sampleRate = 1.0,
-        )
+    private fun config(
+        endpoint: String,
+        maxBatchBytes: Int = 1024 * 1024,
+    ) = AgentConfig(
+        service = "orders-api",
+        apiKey = "tr_live_key",
+        endpoint = endpoint,
+        instanceId = "i1",
+        sampleRate = 1.0,
+        maxBatchBytes = maxBatchBytes,
+    )
 
     /** Answers each call from [replies], repeating the last one once the list runs out. */
     private suspend fun withServer(
@@ -228,6 +232,58 @@ class TracyDeliveryTest {
                 // becomes permanent.
                 assertTrue("dropped" !in capture.bodies[1], capture.bodies[1])
                 assertTrue("fresh" in capture.bodies[1], capture.bodies[1])
+            }
+        }
+
+    @Test
+    fun `no body exceeds the limit the server checks`() =
+        runTest {
+            withServer(listOf(HttpStatusCode.Accepted to """{"accepted":1}""")) { port, capture ->
+                val limit = 2048
+                val config = config("http://127.0.0.1:$port/", maxBatchBytes = limit)
+                val agent = agentFor(config)
+                repeat(40) { i ->
+                    agent.logger("OrdersRouting").error("order could not be placed") {
+                        field("orderId", "order-$i", indexed = true)
+                        field("userId", "user-$i", indexed = true)
+                    }
+                }
+                val delivery = TracyDelivery(agent, config)
+
+                var cycles = 0
+                while (delivery.flushOnce() != null && cycles < 50) cycles++
+
+                // The drain bounds itself with an estimate that does not count `ix`, `r` or the
+                // exception class, so a batch it calls 2048 bytes arrives larger than that. The
+                // server measures the body, answers `413`, and `413` is not retried: the whole
+                // batch was lost, and most of all while working off a backlog.
+                assertTrue(capture.calls > 1, "the batch was never cut: one call for everything")
+                for (body in capture.bodies) {
+                    assertTrue(
+                        body.encodeToByteArray().size <= limit,
+                        "a body the server answers 413 to: ${body.encodeToByteArray().size} > $limit",
+                    )
+                }
+                // Cut, not dropped: every record still arrives, and in order.
+                assertEquals(40, capture.bodies.sumOf { NdJson.decodeBatch(it).lines.size })
+            }
+        }
+
+    @Test
+    fun `a record too large for any batch is counted rather than hidden`() =
+        runTest {
+            withServer(listOf(HttpStatusCode.PayloadTooLarge to """{"error":"batch too large"}""")) { port, capture ->
+                val config = config("http://127.0.0.1:$port/", maxBatchBytes = 2048)
+                val agent = agentFor(config)
+                agent.logger("L").error("x".repeat(4000))
+                val delivery = TracyDelivery(agent, config)
+
+                delivery.flushOnce()
+
+                // Still offered, because the server's own limit may be larger than ours — but the
+                // one loss splitting cannot prevent gets a name instead of hiding inside `rejected`.
+                assertEquals(1, delivery.oversized)
+                assertEquals(1, capture.calls)
             }
         }
 }

@@ -2,7 +2,7 @@
 # Pinned to amd64 on purpose: the image is built on whatever runner is free, and a native
 # binary linked for the builder's architecture would fail at exec time with nothing but
 # "no such file or directory" to explain it.
-FROM --platform=linux/amd64 gradle:9.7.1-jdk25-noble AS build
+FROM --platform=linux/amd64 gradle:9.8.0-jdk25-noble AS build
 
 # The static archives the link needs: libc.a, crt1.o, libstdc++.a, libgcc.a, libgcc_eh.a. This image
 # carries glibc 2.39 — the right version — and none of the archives, and the link fails with

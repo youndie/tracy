@@ -1,7 +1,7 @@
 # tracy
 
 [![ktlint](https://img.shields.io/badge/ktlint%20code--style-%E2%9D%A4-FF4081.svg)](https://ktlint.github.io/)
-[![kotlin](https://img.shields.io/badge/Kotlin-2.4.10-blue?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![kotlin](https://img.shields.io/badge/Kotlin-2.4.20-blue?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![native](https://img.shields.io/badge/Native-blue?logoColor=white)](https://kotlinlang.org)
 [![jvm](https://img.shields.io/badge/JVM-orange?logoColor=white)](https://kotlinlang.org)
 [![tracy agent](https://reposilite.kotlin.website/api/badge/latest/snapshots/io/github/youndie/tracy/agent?name=agent&color=40c14a&prefix=v)](https://reposilite.kotlin.website/#/snapshots/io/github/youndie/tracy/agent)
@@ -126,8 +126,9 @@ claude mcp add --transport http tracy https://tracy.example/mcp \
   --header "Authorization: Bearer $TRACY_MCP_TOKEN"
 ```
 
-With no `TRACY_MCP_TOKEN` set on the server there is no MCP endpoint at all — the feature is off
-by default rather than open by default.
+The `Bearer ` scheme is part of the header, not decoration: a bare token without it is refused with
+`401`. With no `TRACY_MCP_TOKEN` set on the server there is no MCP endpoint at all — the feature is
+off by default rather than open by default.
 
 ## What it is not
 
@@ -163,8 +164,8 @@ by default rather than open by default.
 `charts/tracy` is a Helm chart for the server — see its [README](charts/tracy/README.md). Two
 values fail the render rather than deploying something that looks alive: an empty `ingest.key`,
 because the server refuses to start without one, and an empty `hostname`, because it renders
-``Host(` `)`` rules matching nothing and an MCP transport that refuses every request. Both
-failures are silent otherwise.
+``Host(` `)`` rules matching nothing and leaves the MCP endpoint with no host to check `Host`
+against. Both failures are silent otherwise.
 
 ## Documentation
 

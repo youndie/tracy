@@ -2,6 +2,7 @@ package io.github.youndie.tracy.server.ingest
 
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
+import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.openDatabase
@@ -22,7 +23,6 @@ import io.ktor.server.resources.Resources
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
-import org.koin.ktor.plugin.Koin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -64,7 +64,7 @@ class IngestRoutingTest {
         val server =
             embeddedServer(CIO, port = 0) {
                 // The real container, so the test covers the wiring as well as the handler.
-                install(Koin) { modules(serverModule(config, db)) }
+                installKoreKoin { modules(serverModule(config, db)) }
                 install(Resources)
                 routing { ingestRoutes() }
             }
@@ -225,6 +225,26 @@ class IngestRoutingTest {
                 // make it retry something already stored.
                 assertEquals(202, second.status.value)
                 assertEquals(1, db.scalar("SELECT count(*) FROM log_entry_20260801"))
+            }
+        }
+
+    @Test
+    fun `a write that cannot land is answered 503 rather than 202`() =
+        runTest {
+            withServer { client, port, db ->
+                assertEquals(202, client.send(port, NdJson.encodeBatch(listOf(record(1)))).status.value)
+
+                // The day's table disappears behind the cache's back — which is what eviction did
+                // before it learned to forget, and what any failing statement looks like from here.
+                db.execute("DROP TABLE log_entry_20260801").getOrThrow()
+
+                val response = client.send(port, NdJson.encodeBatch(listOf(record(2))), seq = "2")
+
+                // sqlx4k reports failure through a `Result`, and while it was discarded this
+                // answered `202`: the agent dropped records that were never written, and the batch
+                // marker stored alongside them made a re-send look like a redelivery.
+                assertEquals(503, response.status.value)
+                assertEquals(1, db.scalar("SELECT count(*) FROM ingest_batch"))
             }
         }
 }

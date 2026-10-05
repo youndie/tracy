@@ -25,13 +25,13 @@ plugins {
     // The repositories with their content filters, the shared `wip` catalog, and the check that this
     // repository's `.editorconfig` is the one the rest of them use — this one had no `.editorconfig`
     // at all, so ktlint was reading its own defaults.
-    id("io.github.youndie.sborka.settings") version "0.4.0.57"
+    id("io.github.youndie.sborka.settings") version "0.4.0.111"
 }
 
 dependencyResolutionManagement {
     versionCatalogs {
         create("ktorLibs") {
-            from("io.ktor:ktor-version-catalog:3.5.2")
+            from("io.ktor:ktor-version-catalog:3.6.0")
         }
     }
 }

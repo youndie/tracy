@@ -17,19 +17,22 @@ parent_feature: feature-mcp-access
 > подключения настоящим MCP-клиентом — это M-67, вместе с выкаткой. В katcher именно этот шаг нашёл
 > то, чего не нашли ни тесты, ни curl.
 
-Транспорт — `mcpStatelessStreamableHttp` на Ktor CIO, эндпоинт `POST /mcp`. Read-only инструментам
-сессия не нужна, поэтому stateless.
+Транспорт — `mcpStatelessStreamableHttp` на Ktor CIO, эндпоинт `POST /mcp`; ставит его и охраняет
+`installKoreMcp` из kore-mcp (M-68). Read-only инструментам сессия не нужна, поэтому stateless.
 
 ```bash
 claude mcp add --transport http tracy https://tracy.example/mcp \
   --header "Authorization: Bearer $TRACY_MCP_TOKEN"
 ```
 
+Схема `Bearer` **обязательна**: заголовок с одним токеном, без схемы, получает `401`. До M-68 tracy
+такой принимал — клиент, настроенный так, после обновления сервера перестанет подключаться.
+
 ## Инструменты
 
 | Инструмент | Аннотации | Что отдаёт |
 |---|---|---|
-| `list_services` | `readOnly` | сервисы, инстансы, последняя активность, произведено и сохранено байт по уровням |
+| `list_services` | `readOnly` | сервисы, инстансы **за окно `windowMs`** (сутки) рядом с `instancesEverSeen`, последняя активность, произведено и сохранено байт по уровням |
 | `search_logs(service?, instance?, level?, since?, until?, query?, templateId?, exceptionClass?, entityKey?, entityValue?, limit)` | `readOnly` | **структура** записей: время, сервис, уровень, логгер, шаблон, `traceId`, ключи полей |
 | `get_trace(traceId, limit, depth?)` | `readOnly` | **дерево спанов с длительностями + вписанные записи логов** по всем сервисам |
 | `get_entity(key, value, since?, until?, limit)` | `readOnly` | **хронология бизнес-сущности** через все сервисы и трассы |
@@ -150,9 +153,11 @@ claude mcp add --transport http tracy https://tracy.example/mcp \
 
 | | Как |
 |---|---|
-| Токен | статический bearer в `TRACY_MCP_TOKEN`, сравнение constant-time |
-| Выключено по умолчанию | нет токена — нет ни транспорта, ни перехватчика, ни ingress-маршрута |
-| `Host` | `TRACY_MCP_ALLOWED_HOSTS`; по умолчанию SDK разрешает только localhost |
+| Токен | статический bearer в `TRACY_MCP_TOKEN`, только `Authorization: Bearer <token>` (схема без учёта регистра), сравнение constant-time |
+| Отказ | `401`, тело `{"error":"unauthorized"}`, заголовок `WWW-Authenticate: Bearer`; никогда не редирект |
+| Где проверка | route-scoped плагин на узле маршрута самого транспорта, поставленный раньше него: всё, что роутер приводит к транспорту, проходит через проверку |
+| Выключено по умолчанию | нет токена — нет ни транспорта, ни его охраны, ни ingress-маршрута |
+| `Host` | `TRACY_MCP_ALLOWED_HOSTS`. Пусто — `Host` не проверяется. Задан — чужой, пустой или нечитаемый `Host` получает `400` с телом `{"error":"invalid host","host":"…"}`; записи списка сравниваются без порта и регистра, запись, которая не читается как имя хоста, валит старт. Чарт передаёт сюда `hostname` |
 | Прокси | отдельный ingress-маршрут мимо forward-auth middleware, создаётся только при заданном токене |
 | Не переиспользуем | доверие к `X-Auth-Request-*` — оно принимает любую заявленную личность |
 
@@ -164,13 +169,13 @@ self-hosted статический токен — прагматичный вы�
 
 | Что | Где |
 |---|---|
-| Bearer, `allowedHosts` | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/McpEndpoint.kt` |
-| Установка транспорта SDK | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/McpTransport.kt` |
+| Bearer, `allowedHosts`, установка транспорта SDK | kore-mcp, `installKoreMcp` (`io.github.youndie:kore-mcp`); вызов — `server/src/commonMain/kotlin/io/github/youndie/tracy/server/Application.kt` |
 | Регистрация инструментов и схемы | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/RegisterTools.kt` |
 | Поведение инструментов без транспорта | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/McpTools.kt` |
 | Статический скрин | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/LogTrust.kt` |
 | Двухфазный гейт | `server/src/commonMain/kotlin/io/github/youndie/tracy/server/mcp/EntryContentGate.kt` |
-| Рабочий образец всего перечисленного | `katcher/server/src/commonMain/kotlin/io/github/youndie/katcher/mcp/` |
+| Невидимые символы для скрина | kore-mcp, `HiddenCharacters` |
+| Охрана на любом пути, который роутер приводит к `/mcp` | `server/src/commonTest/kotlin/io/github/youndie/tracy/server/mcp/McpPathTest.kt` |
 
 ## Грабли SDK 0.15.0 (проверены в tracy на живом сокете)
 
@@ -181,10 +186,16 @@ self-hosted статический токен — прагматичный вы�
 * `mcpStatelessStreamableHttp` — расширение `Application`, не `Route`; сам ставит роутинг, внутрь
   `authenticate { }` не вкладывается.
 * Блок `mcpStatelessStreamableHttp` — **фабрика**, возвращающая `Server`, а не ресивер на нём.
-* **`protocolVersion` не пропадает.** Грабля унаследована из katcher и записана здесь как факт;
-  проверка на 0.15.0 через `mcpStatelessStreamableHttp` показала поле в ответе для обеих версий —
-  и `2025-06-18`, и дефолтной `2025-11-25`. Шим, написанный по этому описанию, **удалён**: обход
-  болезни, которой нет, живёт дольше самой болезни и стоит дороже. Остался тест
-  `McpTransportTest` — «версия возвращается», чтобы регрессия была падением, а не потерянным днём.
-  Что именно ломалось в katcher — другой транспорт или другая версия — не выяснено; здесь не
-  воспроизводится.
+* **`protocolVersion` в tracy не пропадал — и теперь известно почему.** Грабля унаследована из
+  katcher; проверка на 0.15.0 показала поле в ответе для обеих версий, и шим, написанный по
+  описанию, был удалён. Механизм нашёл kore (B-68): SDK отвечает через `ContentNegotiation`
+  приложения, и `Json`, не пишущий дефолты, выбрасывает поле, когда версия совпадает с последней
+  версией SDK. У tracy своего `ContentNegotiation` нет, SDK ставит свой, с `McpJson`, — поэтому
+  здесь и не воспроизводилось, и предупреждения SDK о чужом `ContentNegotiation` в логе tracy тоже
+  нет: SDK пишет его, только когда плагин уже стоит. С M-68 ответы транспорта кодирует `McpJson`
+  сам kore-mcp, и тесты на это живут там: `ProtocolVersionTest` держит поле, растяжка —
+  `McpWireFormatTest`, она сверяет ответы целиком. Удалять хук не «когда SDK починит поле»: условие
+  записано в kore, `youndie/kore@53705f1!/docs/features/feature-mcp-endpoint.md`, правило 6 и §7.
+* **`ContentNegotiation`, если он когда-нибудь появится в сервере, ставить до `installKoreMcp`.**
+  SDK кладёт свой на всё приложение, когда не находит чужого, и поздний `install` падает
+  `DuplicatePluginException`.

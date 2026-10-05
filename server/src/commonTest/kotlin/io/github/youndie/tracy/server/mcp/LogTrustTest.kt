@@ -122,4 +122,23 @@ class LogTrustTest {
         // withhold most of what an investigation actually needs.
         assertTrue(LogTrust.screen("order created\n\tat Foo.bar(Foo.kt:1)\r\n\tat Baz.qux()").safe)
     }
+
+    @Test
+    fun `what the hand-written set missed is caught now`() {
+        // The rule takes kore's set since M-68. These three were outside the copy that lived here:
+        // a right-to-left mark, an invisible operator, and a Unicode Tags character — U+E0041, an
+        // invisible "A", the block a whole hidden instruction can be written in.
+        for (payload in listOf("order‏ 42", "total⁢ 7", "order 42󠁁")) {
+            val result = LogTrust.screen(payload)
+
+            assertEquals(listOf("invisible characters"), result.rules, payload.length.toString())
+        }
+    }
+
+    @Test
+    fun `an emoji with its variation selector stays ordinary`() {
+        // U+26A0 U+FE0F is how a warning sign is written in a log line. The variation selectors are
+        // deliberately not in the set, or every line that carries an emoji would be withheld.
+        assertTrue(LogTrust.screen("⚠️ disk almost full").safe)
+    }
 }

@@ -68,7 +68,10 @@ jobs:
         run: |
           docker stop --timeout 40 tracy-ci
           log=$(docker logs tracy-ci 2>&1)
-          for stage in SIGNAL ANNOUNCE DRAIN RELEASE_POOLS EXIT; do
+          # The transcript itself, every run: a stage's time is what shows which one did the work.
+          printf '%s\n' "$log" | grep -E '^(SIGNAL|ANNOUNCE|DRAIN|RELEASE_[A-Z]+|EXIT) ' || true
+          # RELEASE_CONSUMERS holds the health checks, which must stop before the pool closes.
+          for stage in SIGNAL ANNOUNCE DRAIN RELEASE_CONSUMERS RELEASE_POOLS EXIT; do
             if ! printf '%s\n' "$log" | grep -q "$stage COMPLETED"; then
               echo "the shutdown transcript has no completed $stage stage" >&2
               printf '%s\n' "$log" | tail -40 >&2

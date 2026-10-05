@@ -32,7 +32,12 @@ class ToolFacadeTest {
     private fun freshDb(): ISQLite = openDatabase("/tmp/tracy-mcp-${Random.nextLong()}.db")
 
     private fun facade(db: ISQLite) =
-        ToolFacade(QueryRepository(db), TraceRepository(db), SpanSearchRepository(db), EntityRepository(db))
+        ToolFacade(
+            QueryRepository(db, clock = { day }),
+            TraceRepository(db),
+            SpanSearchRepository(db),
+            EntityRepository(db),
+        )
 
     private suspend fun seed(db: ISQLite) {
         IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
