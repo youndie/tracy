@@ -14,6 +14,7 @@ import io.github.youndie.tracy.wire.NdJson
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.server.application.install
@@ -338,6 +339,61 @@ class IngestRoutingTest {
 
                 assertEquals(listOf(202, 202, 429), statuses.map { it.status.value })
                 assertEquals("60", statuses.last().headers["Retry-After"])
+            }
+        }
+
+    // ── A page on another origin (M-145) ───────────────────────────────────────────────────────
+
+    @Test
+    fun `a browser's preflight is answered when client keys exist`() =
+        runTest {
+            withServer { client, port, _ ->
+                val response =
+                    client.request("http://127.0.0.1:$port/ingest") {
+                        method = io.ktor.http.HttpMethod.Options
+                        header("Origin", "https://app.example")
+                        header("Access-Control-Request-Method", "POST")
+                        header("Access-Control-Request-Headers", "x-tracy-key, x-tracy-seq")
+                    }
+
+                assertEquals(204, response.status.value)
+                assertEquals("*", response.headers["Access-Control-Allow-Origin"])
+                assertEquals("POST", response.headers["Access-Control-Allow-Methods"])
+                val allowed = response.headers["Access-Control-Allow-Headers"].orEmpty().lowercase()
+                for (h in listOf(
+                    "x-tracy-key",
+                    "x-tracy-service",
+                    "x-tracy-instance",
+                    "x-tracy-seq",
+                    "x-tracy-run",
+                    "content-type",
+                )) {
+                    assertTrue(h in allowed, "$h is not allowed: $allowed")
+                }
+            }
+        }
+
+    @Test
+    fun `every answer a page gets is readable to it including refusals`() =
+        runTest {
+            withServer { client, port, _ ->
+                val accepted = client.send(port, NdJson.encodeBatch(listOf(record(1))), key = "tr_app_key")
+                val refused = client.send(port, "", key = "nope")
+
+                assertEquals("*", accepted.headers["Access-Control-Allow-Origin"])
+                assertEquals(401, refused.status.value)
+                assertEquals("*", refused.headers["Access-Control-Allow-Origin"])
+            }
+        }
+
+    @Test
+    fun `without client keys the ingest says nothing to browsers`() =
+        runTest {
+            withServer(clientKeys = emptyMap()) { client, port, _ ->
+                val response = client.send(port, NdJson.encodeBatch(listOf(record(1))))
+
+                assertEquals(202, response.status.value)
+                assertEquals(null, response.headers["Access-Control-Allow-Origin"])
             }
         }
 }
