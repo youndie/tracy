@@ -102,6 +102,7 @@ public class Sender(
                         header(IngestHeaders.PRODUCED, counters.producedBytes.toString())
                     }
                     setBody(body)
+                    platformIngestOptions()
                 }
 
             when (val status = response.status.value) {

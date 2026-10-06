@@ -114,6 +114,20 @@ tracy.action("checkout.submit") {
 }
 ```
 
+An app is not told it is going away — it goes to the background and is suspended or killed. Hook the
+platform's own signal so the last records leave first (Android `ON_STOP`, iOS
+`didEnterBackground`, the browser's `visibilitychange`/`pagehide`, a desktop JVM's shutdown):
+
+```kotlin
+val delivery = TracyDelivery(tracy, config).start(appScope)
+delivery.flushWhenBackgrounded()
+```
+
+An app writes with a client key, and the server caps a client's batch at 64 KiB by default
+(`TRACY_CLIENT_MAX_BATCH_BYTES`), so give the app's `AgentConfig` a `maxBatchBytes` below it. In the
+browser the agent caps it at 60 KiB anyway: every send is `keepalive`, so it outlives a closing page,
+and the browser allows such a request 64 KiB of body.
+
 Then log. The message is a constant you wrote; the values go into fields, and that separation is
 what keeps a caller's input out of the template table later. Logging is `suspend` by design — it
 runs inside your request, and the trace context lives in the coroutine, because Kotlin/Native has

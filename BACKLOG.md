@@ -1110,9 +1110,20 @@ M-52 (гипотеза Р8 про топ-100 шаблонов) остаётся 
       (AGP), Node и Yarn в репозиториях настроек и `sborka.repositoriesMode=PREFER_SETTINGS` — без
       них не собирается wasm-таргет. **Не сделано:** замер размера ядра в `.wasm` (открытый
       вопрос 1) — ему нужно исполняемое приложение, он переезжает в M-147.
-- [ ] **M-146** **Сброс при уходе в фон (К5).** Android `ON_STOP`, iOS `didEnterBackground`, браузер
+- [x] **M-146** **Сброс при уходе в фон (К5).** Android `ON_STOP`, iOS `didEnterBackground`, браузер
       `pagehide`/`visibilitychange` через `sendBeacon`, desktop — остановка JVM. Персистентный
       буфер — только после замера потерь на холодном старте.
+
+      **Сделано, с поправкой к К5.** `TracyDelivery.flushWhenBackgrounded()` вешает `requestFlush`
+      на сигнал платформы: Android — `ON_STOP` всего процесса (`lifecycle-process`), iOS —
+      `UIApplicationDidEnterBackgroundNotification`, браузер — `visibilitychange` в hidden и
+      `pagehide`, desktop JVM — shutdown hook со `stop()`; серверный натив — ничего, там остановку
+      ведёт kore. **`sendBeacon` не подошёл**: он не умеет заголовков, а ключ едет в `X-Tracy-Key`.
+      Вместо него каждый запрос из браузера уходит `fetch(keepalive)` (`fetchOptions` Ktor 3.6), а
+      батч режется до 60 КиБ — квота `keepalive` 64 КиБ. Браузерный тест: `pagehide` при интервале
+      сброса в час отправляет батч за секунды; без подписки — таймаут (проверено обратным
+      контролем). Android и iOS только компилируются: на устройстве не проверялись — это M-147.
+      Персистентный буфер между запусками не делался: сначала замер потерь на холодном старте.
 - [ ] **M-147** **Сэмпл и сквозная приёмка.** Compose-приложение → сервис на K/N с агентом → один
       traceId в tracy; клиентская запись деградации с `originalType` ищется по сущности. Документы
       слоёв (`tracy-agent`, `protocol-ingest`) обновляются вместе с кодом, а не после.

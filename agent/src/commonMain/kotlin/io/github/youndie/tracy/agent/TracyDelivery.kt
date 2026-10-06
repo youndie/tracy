@@ -158,7 +158,11 @@ public class TracyDelivery(
         // 1 MiB by default, that difference is a `413`, which the protocol says not to retry, so a
         // full batch was discarded whole — worst exactly while working off a backlog, where every
         // batch is full.
-        val split = NdJson.splitByBytes(queued, config.maxBatchBytes)
+        val split =
+            NdJson.splitByBytes(
+                queued,
+                PLATFORM_MAX_BATCH_BYTES?.let { minOf(it, config.maxBatchBytes) } ?: config.maxBatchBytes,
+            )
         val batch = split.batches.first()
         val rest = split.batches.drop(1).flatten()
 
