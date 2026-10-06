@@ -374,7 +374,7 @@ class IngestRoutingTest {
         }
 
     @Test
-    fun `every answer a page gets is readable to it, refusals included`() =
+    fun `every answer a page gets is readable to it including refusals`() =
         runTest {
             withServer { client, port, _ ->
                 val accepted = client.send(port, NdJson.encodeBatch(listOf(record(1))), key = "tr_app_key")
