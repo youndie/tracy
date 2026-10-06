@@ -52,6 +52,7 @@ publishes:
 | `agent/src/commonMain/.../TracyLogger.kt` | API логирования |
 | `agent-ktor-server/src/commonMain/.../TracyPlugin.kt` | серверный плагин Ktor: `traceparent`, спан входящего запроса, семплирование |
 | `agent-ktor-server/src/commonMain/.../TracyDeliveryWiring.kt` | `Application.startTracyDelivery`: доставка, остановленная по `ApplicationStopping` |
+| `agent/src/commonMain/.../Action.kt` | `action(name) { }` — корневой спан трейса, открытого приложением; внутри трейса — обычный спан |
 | `agent/src/commonMain/.../TracyClientPlugin.kt` | плагин Ktor-клиента: спан исходящего вызова + подстановка `traceparent` |
 | `agent/src/commonMain/.../Span.kt` | `withSpan("name") { }` — ручная разметка участков кода |
 | `agent/src/commonMain/.../TracyTraceContext.kt` | элемент корутинного контекста |

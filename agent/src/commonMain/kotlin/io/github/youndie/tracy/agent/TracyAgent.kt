@@ -118,6 +118,9 @@ public class TracyAgent(
 
     public fun now(): Long = clock()
 
+    /** The head sampling decision for a trace this process opens itself (research D7). */
+    internal fun headSample(): Boolean = random() < config.sampleRate
+
     /**
      * Redaction for text that is not a log message but still ends up stored — a span name, for
      * instance. Same rule, same reason: a credential in low-cardinality structure that reads as
@@ -149,6 +152,11 @@ public class TracyAgent(
         durationMs: Long,
         statusCode: Int?,
         forced: Boolean = false,
+        /**
+         * `false` when this process already rolled the dice for the trace at its head — an app's
+         * [action]. Rolling again here would keep twice the configured share of healthy traces.
+         */
+        sampleAtTail: Boolean = true,
     ) {
         val pending = trace.takePending()
 
@@ -158,7 +166,7 @@ public class TracyAgent(
                 durationMs >= config.slowThreshold.inWholeMilliseconds ||
                 trace.sampledUpstream ||
                 forced ||
-                random() < config.sampleRate
+                (sampleAtTail && random() < config.sampleRate)
 
         if (keepAll) {
             pending.forEach { buffer.offer(it) }
