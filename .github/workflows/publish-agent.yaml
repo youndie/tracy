@@ -29,7 +29,7 @@ jobs:
       # Tests first. An artifact that failed its own tests is worse than no artifact: it is
       # available and wrong.
       - name: Check
-        run: ./gradlew :shared:check :agent:check --stacktrace
+        run: ./gradlew :shared:check :agent:check :agent-ktor-server:check --stacktrace
 
       # `0.3.<run number>`. It reaches the build as the version itself rather than as a part for
       # the build to assemble, because `sborka.base` sets the PROJECT version from it — and a version
@@ -46,7 +46,7 @@ jobs:
       # it in a secret concealed nothing that was still concealed — and with the secret unset, as it
       # was, the publishing block registered no repository at all and the publish did nothing.
       - name: Publish
-        run: ./gradlew :shared:publishAllPublicationsToWipRepository :agent:publishAllPublicationsToWipRepository --no-daemon
+        run: ./gradlew :shared:publishAllPublicationsToWipRepository :agent:publishAllPublicationsToWipRepository :agent-ktor-server:publishAllPublicationsToWipRepository --no-daemon
         env:
           ORG_GRADLE_PROJECT_VERSION: ${{ steps.ver.outputs.version }}
           ORG_GRADLE_PROJECT_REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}

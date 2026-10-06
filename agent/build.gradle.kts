@@ -58,7 +58,8 @@ kotlin {
 
         commonMain.dependencies {
             api(projects.shared)
-            implementation(ktorLibs.server.core)
+            // No `ktor-server-*` here (M-141): an app writes logs too, and an app has no server.
+            // The server plugin and the delivery wiring live in `:agent-ktor-server`.
             implementation(libs.kotlin.logging)
             // The client is shared, the engine is per-platform: CIO has no TLS on
             // Kotlin/Native and drags a SelectorManager into the host process.
