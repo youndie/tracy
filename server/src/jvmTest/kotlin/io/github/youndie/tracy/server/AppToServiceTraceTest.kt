@@ -24,11 +24,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The whole of research-clients in one run (M-147): an app opens a trace around what a person did,
@@ -51,7 +54,14 @@ class AppToServiceTraceTest {
 
     @Test
     fun `an app's action and the service it called come back as one trace`() =
+        // Bounded: three servers and two deliveries in one process, and a hang anywhere in them would
+        // otherwise hold CI until the job's own limit with nothing in the log to say where.
         runBlocking {
+            withTimeout(60.seconds) { oneTrace() }
+        }
+
+    private suspend fun oneTrace() =
+        coroutineScope {
             val db = openDatabase("/tmp/tracy-e2e-${Random.nextLong()}.db")
             val config =
                 ServerConfig(
