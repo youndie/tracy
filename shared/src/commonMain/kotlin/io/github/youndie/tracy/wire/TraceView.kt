@@ -69,4 +69,10 @@ public data class TraceLogLine(
     public val fieldKeys: List<String> = emptyList(),
     /** Names whose values were masked — so a hidden value is never mistaken for an absent one. */
     public val redacted: List<String> = emptyList(),
+    /**
+     * True when the screen held an untrusted message back on its way to a reader. The line stays —
+     * its time, level and logger still place it in the trace — and the text does not.
+     */
+    public val withheld: Boolean = false,
+    public val withheldBy: List<String> = emptyList(),
 )
