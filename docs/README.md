@@ -39,6 +39,8 @@
 
 **Research**
 - [research-architecture](research/research-architecture.md) — проверенные факты, решения, риски.
+- [research-clients](research/research-clients.md) — клиентские приложения: чего не хватает агенту и
+  приёму, почему не OpenTelemetry Kotlin, решения К1–К6 (веха M14).
   **Точка входа для любого, кто берётся за задачу.**
 
 **Features**
