@@ -42,4 +42,5 @@ rootProject.name = "tracy"
 
 include(":shared")
 include(":agent")
+include(":agent-ktor-server")
 include(":server")

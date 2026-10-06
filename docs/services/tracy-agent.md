@@ -3,14 +3,15 @@ id: tracy-agent
 title: tracy-agent
 type: service
 status: active
-module: ":agent"
+module: ":agent, :agent-ktor-server"
 tech_stack: [Kotlin, KMP, Ktor]
-targets: [jvm, macosArm64, linuxX64, linuxArm64]
+targets: [jvm, macosArm64, linuxX64, linuxArm64, iosArm64, iosSimulatorArm64, iosX64]
 owner: unassigned
 depends_on:
   - tracy-server
 publishes:
   - "io.github.youndie.tracy:agent (Maven)"
+  - "io.github.youndie.tracy:agent-ktor-server (Maven)"
 ---
 
 # tracy-agent
@@ -49,7 +50,8 @@ publishes:
 | Файл | Что там |
 |---|---|
 | `agent/src/commonMain/.../TracyLogger.kt` | API логирования |
-| `agent/src/commonMain/.../TracyPlugin.kt` | серверный плагин Ktor: `traceparent`, спан входящего запроса, семплирование |
+| `agent-ktor-server/src/commonMain/.../TracyPlugin.kt` | серверный плагин Ktor: `traceparent`, спан входящего запроса, семплирование |
+| `agent-ktor-server/src/commonMain/.../TracyDeliveryWiring.kt` | `Application.startTracyDelivery`: доставка, остановленная по `ApplicationStopping` |
 | `agent/src/commonMain/.../TracyClientPlugin.kt` | плагин Ktor-клиента: спан исходящего вызова + подстановка `traceparent` |
 | `agent/src/commonMain/.../Span.kt` | `withSpan("name") { }` — ручная разметка участков кода |
 | `agent/src/commonMain/.../TracyTraceContext.kt` | элемент корутинного контекста |
@@ -111,6 +113,12 @@ kotlin-logging снесла бы логбэк-конфиг приложения 
 
 ## 4. Зависимости
 
+**Два модуля с M-141.** `:agent` — ядро: буфер, доставка, логгер, спаны, `TracyClient`; от
+`ktor-server-*` не зависит, потому что пишет логи и приложение, у которого сервера нет
+([research-clients](../research/research-clients.md) К1). `:agent-ktor-server` — серверный плагин и
+`startTracyDelivery`, в том же пакете: сервису, который уже импортирует `Tracy`, достаточно строки
+зависимости. Таргеты у него только серверные — jvm, macos, linux.
+
 | Тип | Имя | Для чего |
 |---|---|---|
 | Service | tracy-server | приём батчей |
@@ -147,8 +155,8 @@ kotlin-logging снесла бы логбэк-конфиг приложения 
 ## 7. Локальный запуск
 
 ```bash
-./gradlew :agent:jvmTest
-./gradlew :agent:macosArm64Test
+./gradlew :agent:jvmTest :agent-ktor-server:jvmTest
+./gradlew :agent:macosArm64Test :agent-ktor-server:macosArm64Test
 ```
 
 Для сквозной проверки нужен поднятый `:server` — см. [tracy-server](tracy-server.md) §7.

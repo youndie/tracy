@@ -83,8 +83,8 @@ public class TracyDelivery(
      * in the portfolio wrote precisely that line, and every shutdown lost up to one flush interval
      * of records — including the records explaining the shutdown.
      *
-     * [Application.startTracyDelivery] is the shorter form for a service that has no ordered
-     * shutdown of its own.
+     * `Application.startTracyDelivery` in `:agent-ktor-server` is the shorter form for a Ktor
+     * service that has no ordered shutdown of its own.
      */
     public fun start(scope: CoroutineScope): TracyDelivery {
         check(job == null) { "delivery already started" }

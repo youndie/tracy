@@ -68,7 +68,13 @@ until the first incident.
 docker run -p 8080:8080 -e TRACY_INGEST_KEY=dev-key ghcr.io/youndie/tracy:latest
 ```
 
-Add the agent to a Ktor service:
+Add the agent to a Ktor service. The server plugin is a module of its own, so that an app — which
+writes logs too and has no server — does not pull `ktor-server-core`:
+
+```kotlin
+implementation("io.github.youndie.tracy:agent-ktor-server:<version>")  // brings :agent with it
+```
+
 
 ```kotlin
 val config = AgentConfig(
