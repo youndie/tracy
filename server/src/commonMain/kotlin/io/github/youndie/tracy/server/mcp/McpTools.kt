@@ -125,7 +125,13 @@ public class ToolFacade(
     public suspend fun getTrace(traceId: String): io.github.youndie.tracy.wire.TraceView {
         val view = traces.load(traceId)
         remember(view.roots.flatMap { it.allEntryIds() } + view.looseLogs.map { it.entryId })
-        return view
+        // The same screen search_logs applies, and for the same reason: an interpolated message
+        // carries the caller's text inside it (research D8). The trace view used to go out as
+        // loaded, so a line screened in a search came back verbatim one tool call later.
+        return view.copy(
+            roots = view.roots.map { it.screened() },
+            looseLogs = view.looseLogs.map { it.screened() },
+        )
     }
 
     public suspend fun searchSpans(
@@ -217,6 +223,15 @@ private fun LogHit.toMcp(): McpLogLine {
         withheld = !screen.safe,
         withheldBy = screen.rules,
     )
+}
+
+private fun io.github.youndie.tracy.wire.TraceNode.screened(): io.github.youndie.tracy.wire.TraceNode =
+    copy(children = children.map { it.screened() }, logs = logs.map { it.screened() })
+
+private fun io.github.youndie.tracy.wire.TraceLogLine.screened(): io.github.youndie.tracy.wire.TraceLogLine {
+    if (!untrusted) return this
+    val screen = LogTrust.screen(message)
+    return if (screen.safe) this else copy(message = "", withheld = true, withheldBy = screen.rules)
 }
 
 private fun io.github.youndie.tracy.wire.TraceNode.allEntryIds(): List<Long> =
