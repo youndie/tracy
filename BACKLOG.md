@@ -1092,13 +1092,24 @@ M-52 (гипотеза Р8 про топ-100 шаблонов) остаётся 
       имена логгеров и спанов в `search_logs`, `get_trace` и `search_spans`; `TraceNode` и
       `SpanHit` получили `withheld`. Попутно найдено и закрыто отдельно (#85): `get_trace` не
       экранировал недоверенные сообщения и у сервисов.
-- [ ] **M-145** **Android и браузер (К6).** `androidTarget` с проверкой, что Android-приложение
+- [x] **M-145** **Android и браузер (К6).** `androidTarget` с проверкой, что Android-приложение
       получает его, а не `jvm`-вариант; `wasmJs` для браузерного Compose. Размер ядра в `.wasm`
       замерить, порог объявить до замера (открытый вопрос 1).
 
       **Часть сделана отдельно — CORS на приёме.** Без него страница с другого origin не
       отправит ни одного батча: приём отвечает на предварительный `OPTIONS` и ставит
       `Access-Control-Allow-Origin: *` на каждый ответ — только когда заданы клиентские ключи.
+
+      **Сделано.** `:shared` и `:agent` собираются под `androidLibrary` и `wasmJs` (browser).
+      Android получает свой вариант: в метаданных публикации — `androidApiElements` с
+      `platform.type = androidJvm`, его Gradle и выбирает вместо `jvm`; движок — OkHttp. В браузере —
+      `ktor-client-js`. Тесты с настоящим сокетом (`SenderSocketTest`, `TracyClientPluginTest`,
+      `TracyDeliveryTest`, `ActionTest`) переехали в source set `socketTest` для jvm и native:
+      страница не слушает порт, а `start(wait)` у Ktor-сервера на wasm ещё и deprecated под
+      `-Werror`. Остальное гоняется и в браузере. Попутно: `google()` в репозиториях плагинов
+      (AGP), Node и Yarn в репозиториях настроек и `sborka.repositoriesMode=PREFER_SETTINGS` — без
+      них не собирается wasm-таргет. **Не сделано:** замер размера ядра в `.wasm` (открытый
+      вопрос 1) — ему нужно исполняемое приложение, он переезжает в M-147.
 - [ ] **M-146** **Сброс при уходе в фон (К5).** Android `ON_STOP`, iOS `didEnterBackground`, браузер
       `pagehide`/`visibilitychange` через `sendBeacon`, desktop — остановка JVM. Персистентный
       буфер — только после замера потерь на холодном старте.

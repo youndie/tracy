@@ -2,6 +2,16 @@ pluginManagement {
     repositories {
         mavenCentral()
         gradlePluginPortal()
+        // The Android Gradle plugin is published here and nowhere else (M-145: the agent has an Android
+        // target). Filtered: an unfiltered repository takes part in resolving every plugin. Three
+        // groups, because the plugin's own classpath reaches into androidx and com.google.
+        google {
+            content {
+                includeGroupAndSubgroups("com.android")
+                includeGroupAndSubgroups("androidx")
+                includeGroupAndSubgroups("com.google")
+            }
+        }
         // Written out by hand, and it has to be: `pluginManagement` is evaluated before any settings
         // plugin is applied — including the sborka one, which is fetched through it.
         maven("https://reposilite.kotlin.website/snapshots") {
@@ -29,6 +39,25 @@ plugins {
 }
 
 dependencyResolutionManagement {
+    // The Kotlin plugin registers its own repositories for the Node and Yarn the wasmJs tests run on
+    // (M-145). Settings repositories win over project ones in this portfolio, so without these two
+    // the lookup falls through to Maven Central and fails with "Could not find org.nodejs:node".
+    // Filtered to the one module each serves: an unfiltered repository takes part in resolving
+    // every dependency.
+    repositories {
+        ivy("https://nodejs.org/dist/") {
+            name = "Node distributions"
+            patternLayout { artifact("v[revision]/[artifact](-v[revision]-[classifier]).[ext]") }
+            metadataSources { artifact() }
+            content { includeModule("org.nodejs", "node") }
+        }
+        ivy("https://github.com/yarnpkg/yarn/releases/download") {
+            name = "Yarn distributions"
+            patternLayout { artifact("v[revision]/[artifact](-v[revision]).[ext]") }
+            metadataSources { artifact() }
+            content { includeModule("com.yarnpkg", "yarn") }
+        }
+    }
     versionCatalogs {
         create("ktorLibs") {
             from("io.ktor:ktor-version-catalog:3.6.0")
