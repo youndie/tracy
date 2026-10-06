@@ -11,6 +11,19 @@ class ServerConfig(
     val dbPath: String,
     val ingestKey: String,
     val maxBatchBytes: Int = 1024 * 1024,
+    /**
+     * Keys an app writes with, key → app name (research-clients K3). Empty means no app may write.
+     *
+     * Not secrets: a key ships inside the app, and anyone who unpacks it has it. So a client key's
+     * rights are the protection — it writes only to `app:<name>`, everything it writes is data
+     * (K4), and how much it may write is capped below — and leaking one costs a rotation, not the
+     * installation key that every service holds.
+     */
+    val clientKeys: Map<String, String> = emptyMap(),
+    /** Batch ceiling for a client key. An app's batch is small; a large one is somebody else. */
+    val clientMaxBatchBytes: Int = 64 * 1024,
+    val clientBatchesPerMinutePerKey: Int = 600,
+    val clientBatchesPerMinutePerInstance: Int = 12,
     /** Budget of entity references per minute per (service, key) — the breaker of research D15. */
     val entityRefsPerMinute: Int = 2000,
     val suppressedTtlDays: Long = 14,
@@ -87,6 +100,41 @@ class ServerConfig(
         const val DEFAULT_WAL_MAX_BYTES: Long = 32L * 1024 * 1024
 
         /**
+         * `key=app,key=app`. Refused rather than half-read: a client key the operator wrote and the
+         * server quietly skipped is an app whose logs go nowhere, and nobody is told.
+         */
+        internal fun clientKeys(
+            text: String?,
+            ingestKey: String,
+        ): Map<String, String> {
+            val entries =
+                text
+                    .orEmpty()
+                    .split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+            val keys = LinkedHashMap<String, String>()
+            for (entry in entries) {
+                val key = entry.substringBefore('=', "").trim()
+                val app = entry.substringAfter('=', "").trim()
+                require(key.isNotEmpty() && app.isNotEmpty()) {
+                    "TRACY_CLIENT_KEYS: an entry is not key=app (the entry is not echoed: it holds a key)"
+                }
+                require(
+                    io.github.youndie.tracy.server.ingest.APP_NAME
+                        .matches(app),
+                ) {
+                    "TRACY_CLIENT_KEYS: app name \"$app\" must be lower-case letters, digits and dashes"
+                }
+                // The installation key as a client key would let every service write as an app and
+                // every app write as a service — the one confusion the `app:` namespace exists to rule out.
+                require(key != ingestKey) { "TRACY_CLIENT_KEYS: a client key must not be the installation key" }
+                require(keys.put(key, app) == null) { "TRACY_CLIENT_KEYS: a key is listed twice" }
+            }
+            return keys
+        }
+
+        /**
          * [read] is injectable so that the validation below is testable on every target.
          * Reading the real environment stays the default.
          */
@@ -128,6 +176,11 @@ class ServerConfig(
                 dbPath = read("TRACY_DB_PATH") ?: "/data/tracy.db",
                 ingestKey = ingestKey,
                 maxBatchBytes = int("TRACY_MAX_BATCH_BYTES") ?: (1024 * 1024),
+                clientKeys = clientKeys(read("TRACY_CLIENT_KEYS"), ingestKey),
+                clientMaxBatchBytes = int("TRACY_CLIENT_MAX_BATCH_BYTES")?.takeIf { it > 0 } ?: (64 * 1024),
+                clientBatchesPerMinutePerKey = int("TRACY_CLIENT_BATCHES_PER_MINUTE")?.takeIf { it > 0 } ?: 600,
+                clientBatchesPerMinutePerInstance =
+                    int("TRACY_CLIENT_BATCHES_PER_MINUTE_PER_INSTANCE")?.takeIf { it > 0 } ?: 12,
                 entityRefsPerMinute = int("TRACY_ENTITY_REFS_PER_MINUTE") ?: 2000,
                 suppressedTtlDays = long("TRACY_SUPPRESSED_TTL_DAYS") ?: 14,
                 retentionDays = int("TRACY_RETENTION_DAYS") ?: 30,
