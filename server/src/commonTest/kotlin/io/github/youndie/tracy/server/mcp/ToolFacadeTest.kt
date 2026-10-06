@@ -257,7 +257,7 @@ class ToolFacadeTest {
         }
 
     @Test
-    fun `an app's logger and span names are screened, a service's are not`() =
+    fun `an app's logger and span names are screened and a service's are not`() =
         runTest {
             val db = freshDb()
             val trace = "0af7651916cd43dd8448eb211c80319c"
