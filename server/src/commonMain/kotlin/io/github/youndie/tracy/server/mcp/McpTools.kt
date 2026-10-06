@@ -1,5 +1,6 @@
 package io.github.youndie.tracy.server.mcp
 
+import io.github.youndie.tracy.server.ingest.APP_SERVICE_PREFIX
 import io.github.youndie.tracy.server.query.EntityRepository
 import io.github.youndie.tracy.server.query.LogHit
 import io.github.youndie.tracy.server.query.QueryRepository
@@ -142,8 +143,10 @@ public class ToolFacade(
         since: Long,
         until: Long,
         limit: Int = 50,
-    ): io.github.youndie.tracy.server.trace.SpanSearchResult =
-        spans.search(service, name, minDurationMs, onlyErrors, since, until, limit)
+    ): io.github.youndie.tracy.server.trace.SpanSearchResult {
+        val result = spans.search(service, name, minDurationMs, onlyErrors, since, until, limit)
+        return result.copy(hits = result.hits.map { it.screened() })
+    }
 
     public suspend fun getEntity(
         key: String,
@@ -205,16 +208,35 @@ public class ToolFacade(
     }
 }
 
+/**
+ * An app's service (research-clients K4). Everything under `app:` came from a device, written with a
+ * key that ships inside the app, so its logger and span names are text from outside — not the call
+ * sites and routes they are for a service. The ingest already stores its records as untrusted; the
+ * names are screened here, on the way to the reader.
+ */
+private fun fromApp(service: String): Boolean = service.startsWith(APP_SERVICE_PREFIX)
+
+/** One verdict over several texts: unsafe if any of them is, with every rule that fired. */
+private fun screenAll(texts: List<String>): ScreenResult {
+    val results = texts.map { LogTrust.screen(it) }
+    return if (results.all { it.safe }) {
+        ScreenResult.SAFE
+    } else {
+        ScreenResult(safe = false, rules = results.flatMap { it.rules }.distinct())
+    }
+}
+
 private fun LogHit.toMcp(): McpLogLine {
     // The template a developer wrote is trusted; an interpolated message is data and is screened
-    // like a value (research D8, risk 4).
-    val screen = if (untrusted) LogTrust.screen(message) else ScreenResult.SAFE
+    // like a value (research D8, risk 4). An app's logger name is data too.
+    val texts = listOfNotNull(message.takeIf { untrusted }, logger.takeIf { fromApp(service) })
+    val screen = if (texts.isEmpty()) ScreenResult.SAFE else screenAll(texts)
     return McpLogLine(
         entryId = entryId,
         ts = ts,
         service = service,
         level = level,
-        logger = logger,
+        logger = if (screen.safe || !fromApp(service)) logger else "",
         templateId = templateId,
         message = if (screen.safe) message else "",
         traceId = traceId,
@@ -225,13 +247,34 @@ private fun LogHit.toMcp(): McpLogLine {
     )
 }
 
-private fun io.github.youndie.tracy.wire.TraceNode.screened(): io.github.youndie.tracy.wire.TraceNode =
-    copy(children = children.map { it.screened() }, logs = logs.map { it.screened() })
+private fun io.github.youndie.tracy.wire.TraceNode.screened(): io.github.youndie.tracy.wire.TraceNode {
+    val screen = if (fromApp(service)) LogTrust.screen(name) else ScreenResult.SAFE
+    return copy(
+        name = if (screen.safe) name else "",
+        withheld = !screen.safe,
+        withheldBy = screen.rules,
+        children = children.map { it.screened() },
+        logs = logs.map { it.screened() },
+    )
+}
 
 private fun io.github.youndie.tracy.wire.TraceLogLine.screened(): io.github.youndie.tracy.wire.TraceLogLine {
-    if (!untrusted) return this
-    val screen = LogTrust.screen(message)
-    return if (screen.safe) this else copy(message = "", withheld = true, withheldBy = screen.rules)
+    val texts = listOfNotNull(message.takeIf { untrusted }, logger.takeIf { fromApp(service) })
+    if (texts.isEmpty()) return this
+    val screen = screenAll(texts)
+    if (screen.safe) return this
+    return copy(
+        message = "",
+        logger = if (fromApp(service)) "" else logger,
+        withheld = true,
+        withheldBy = screen.rules,
+    )
+}
+
+private fun io.github.youndie.tracy.server.trace.SpanHit.screened(): io.github.youndie.tracy.server.trace.SpanHit {
+    if (!fromApp(service)) return this
+    val screen = LogTrust.screen(name)
+    return if (screen.safe) this else copy(name = "", withheld = true, withheldBy = screen.rules)
 }
 
 private fun io.github.youndie.tracy.wire.TraceNode.allEntryIds(): List<Long> =
