@@ -14,8 +14,10 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.header
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
+import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import org.koin.ktor.ext.inject
 
@@ -28,7 +30,26 @@ public fun Route.ingestRoutes() {
     val budget by inject<EntityKeyBudget>()
     val clientLimiter by inject<ClientRateLimiter>()
 
+    // A browser app — Compose compiled to wasm, on a page of its own origin — posts here with fetch,
+    // and a browser hands a cross-origin request over only after asking. Answered only when client
+    // keys exist: without one no page can write anyway, and the installation's own services never
+    // ask. No credentials are allowed and none are honoured — the key travels in a header, not in a
+    // cookie — so `*` grants a page nothing it did not already hold.
+    if (config.clientKeys.isNotEmpty()) {
+        options(INGEST_PATH) {
+            call.allowAnyOrigin()
+            call.response.header(HttpHeaders.AccessControlAllowMethods, "POST")
+            call.response.header(HttpHeaders.AccessControlAllowHeaders, INGEST_REQUEST_HEADERS)
+            call.response.header(HttpHeaders.AccessControlMaxAge, "600")
+            call.respond(HttpStatusCode.NoContent)
+        }
+    }
+
     post(INGEST_PATH) {
+        // Every answer, refusals included: a page that cannot read a 401 or a 429 cannot tell its
+        // key is wrong or that it should back off, and retries into the same wall.
+        if (config.clientKeys.isNotEmpty()) call.allowAnyOrigin()
+
         val key = call.request.header(IngestHeaders.KEY)
         // Constant-time comparison is pointless for a shared installation key sent on every
         // batch; what matters is that a missing or wrong key never reaches the database.
@@ -115,4 +136,23 @@ private suspend fun ApplicationCall.respondJson(
     body: String,
 ) {
     respondText(body, io.ktor.http.ContentType.Application.Json, status)
+}
+
+/** What a page sends: the body type and every header of the protocol. */
+private val INGEST_REQUEST_HEADERS: String =
+    listOf(
+        HttpHeaders.ContentType,
+        IngestHeaders.KEY,
+        IngestHeaders.SERVICE,
+        IngestHeaders.INSTANCE,
+        IngestHeaders.RELEASE,
+        IngestHeaders.SEQ,
+        IngestHeaders.DROPPED,
+        IngestHeaders.PRODUCED,
+        IngestHeaders.SENT,
+        IngestHeaders.RUN,
+    ).joinToString(", ")
+
+private fun ApplicationCall.allowAnyOrigin() {
+    response.header(HttpHeaders.AccessControlAllowOrigin, "*")
 }
