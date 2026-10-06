@@ -26,6 +26,9 @@ public data class SpanHit(
     public val durationMs: Int?,
     public val status: Int?,
     public val error: Boolean,
+    /** True when the screen held the name back — an app's span only (`app:*`). */
+    public val withheld: Boolean = false,
+    public val withheldBy: List<String> = emptyList(),
 )
 
 @Serializable

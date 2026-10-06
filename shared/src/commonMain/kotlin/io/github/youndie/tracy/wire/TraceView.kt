@@ -54,6 +54,12 @@ public data class TraceNode(
     public val orphan: Boolean = false,
     public val children: List<TraceNode> = emptyList(),
     public val logs: List<TraceLogLine> = emptyList(),
+    /**
+     * True when the screen held the span's name back. Only an app's span is screened (`app:*`):
+     * its name is text from a device, while a service's span name is a route or a call site.
+     */
+    public val withheld: Boolean = false,
+    public val withheldBy: List<String> = emptyList(),
 )
 
 @Serializable
