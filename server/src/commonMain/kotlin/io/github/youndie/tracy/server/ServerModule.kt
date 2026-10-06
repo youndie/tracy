@@ -5,6 +5,7 @@ import io.github.youndie.tracy.server.db.EntityKeyBudget
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.db.Partitions
 import io.github.youndie.tracy.server.db.WalCheckpoint
+import io.github.youndie.tracy.server.ingest.ClientRateLimiter
 import io.github.youndie.tracy.server.ingest.IngestBatchUseCase
 import io.github.youndie.tracy.server.mcp.ToolFacade
 import io.github.youndie.tracy.server.query.EntityRepository
@@ -49,6 +50,13 @@ public fun serverModule(
         single { Partitions() }
         single { IngestRepository(db, partitions = get(), budget = get(), clock = { currentTimeMillis() }) }
         single { IngestBatchUseCase(get(), clock = { currentTimeMillis() }) }
+        single {
+            ClientRateLimiter(
+                perKey = config.clientBatchesPerMinutePerKey,
+                perInstance = config.clientBatchesPerMinutePerInstance,
+                clock = { currentTimeMillis() },
+            )
+        }
 
         single { QueryRepository(db, clock = { currentTimeMillis() }) }
         single { TraceRepository(db) }

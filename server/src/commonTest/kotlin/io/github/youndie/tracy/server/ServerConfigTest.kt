@@ -151,4 +151,31 @@ class ServerConfigTest {
         // failing on that would be the same trap with better manners.
         assertEquals(6_442_450_944L, config.maxDbBytes)
     }
+
+    @Test
+    fun `client keys are read as key=app pairs`() {
+        val config =
+            ServerConfig.fromEnv(
+                env(
+                    "TRACY_INGEST_KEY" to "k",
+                    "TRACY_CLIENT_KEYS" to " a1=konekt , b2=shop-app ",
+                ),
+            )
+
+        assertEquals(mapOf("a1" to "konekt", "b2" to "shop-app"), config.clientKeys)
+    }
+
+    @Test
+    fun `no client keys means no app may write`() {
+        assertEquals(emptyMap(), ServerConfig.fromEnv(env("TRACY_INGEST_KEY" to "k")).clientKeys)
+    }
+
+    @Test
+    fun `a client key list that cannot be read fails the start`() {
+        for (bad in listOf("a1", "a1=", "=konekt", "a1=Konekt", "a1=app:x", "k=konekt", "a1=x,a1=y")) {
+            assertFailsWith<IllegalArgumentException>(bad) {
+                ServerConfig.fromEnv(env("TRACY_INGEST_KEY" to "k", "TRACY_CLIENT_KEYS" to bad))
+            }
+        }
+    }
 }
