@@ -72,11 +72,15 @@ kotlin {
         androidMain.dependencies {
             // OkHttp, the engine an Android app already carries, rather than CIO and its selector.
             implementation(ktorLibs.client.okhttp)
+            // ON_STOP of the whole process, the moment an app may be killed without another word (K5).
+            implementation("androidx.lifecycle:lifecycle-process:2.11.0")
         }
         wasmJsMain.dependencies {
             // The browser's own fetch. The ingest answers CORS for client keys, so a page on
             // another origin can send to it.
             implementation(ktorLibs.client.js)
+            // `document` and `window` for the page's own "you are leaving" events (K5).
+            implementation("org.jetbrains.kotlinx:kotlinx-browser:0.5.0")
         }
 
         commonMain.dependencies {
@@ -113,6 +117,11 @@ kotlin {
                 implementation(ktorLibs.server.core)
                 implementation(ktorLibs.server.cio)
             }
+        }
+        wasmJsTest.dependencies {
+            // The page's own events drive a flush; the send is caught by a mock engine, because a
+            // page cannot listen on a port to receive it.
+            implementation(ktorLibs.client.mock)
         }
         jvmTest.get().dependsOn(socketTest)
         nativeTest.get().dependsOn(socketTest)
