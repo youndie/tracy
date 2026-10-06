@@ -1,0 +1,36 @@
+name: Sample
+
+# The Compose app sample is a build of its own (samples/compose-app) that takes the agent from this
+# checkout. Nothing else compiles it, so a change to the agent's public API would break it unseen.
+# Both variants are built: the one with the agent, and the baseline MEASUREMENT.md compares it with.
+on:
+  pull_request:
+    paths:
+      - samples/compose-app/**
+      - agent/**
+      - shared/**
+      - .github/workflows/sample.yml
+  push:
+    branches: [main]
+    paths:
+      - samples/compose-app/**
+      - agent/**
+      - shared/**
+      - .github/workflows/sample.yml
+
+concurrency:
+  group: sample-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: youndie/sborka/.github/actions/setup-kotlin@v0.5.0.130
+      - name: With the agent
+        run: ./gradlew -p samples/compose-app compileKotlinDesktop wasmJsBrowserDistribution
+      - name: Without it
+        run: |
+          rm -rf samples/compose-app/kotlin-js-store
+          ./gradlew -p samples/compose-app -Ptracy.agent=false clean compileKotlinDesktop wasmJsBrowserDistribution

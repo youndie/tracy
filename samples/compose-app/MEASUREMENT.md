@@ -20,6 +20,22 @@ build before it is recommended for one.
 
 One run per variant: the build is deterministic, so a second run measures the same bytes.
 
-## Result
+## Result — 2026-10-07: passes, +5.0 %
 
-Not measured yet.
+Measured on a Mac, Kotlin 2.4.20, Compose Multiplatform 1.12.1, agent at `4bfb423` (with the
+background flush), `wasmJsBrowserDistribution` of each variant from clean, `gzip -9`:
+
+| | the app's `.wasm` | skiko `.wasm` | **all `.wasm`, gzip** | `app.js`, gzip |
+|---|---|---|---|---|
+| without the agent | 576 165 B | 3 324 704 B | **3 900 869 B** | 58 190 B |
+| with the agent | 772 075 B | 3 324 704 B | **4 096 779 B** | 59 641 B |
+| difference | +195 910 B | 0 | **+195 910 B (+5.0 %)** | +1 451 B |
+
+**Under the 10 % threshold: the agent passes.**
+
+What the threshold did not ask, written down so it is not lost: against the app's **own** `.wasm`,
+without skiko, the agent is +34 % (576 → 772 KB gzipped). For this sample skiko is 85 % of what a
+first visit downloads, so the total hides the agent. An app whose own code is much larger than this
+one's will see a smaller share; an app that one day loads skiko lazily (the wasm-chunks question) will
+see a larger one. The 191 KiB is ktor-client-js, kotlinx-serialization and kotlin-logging as much as the
+agent's own code, and it is the number to compare against if a slimmer browser build is ever wanted.
