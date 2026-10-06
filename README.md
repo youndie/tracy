@@ -105,6 +105,15 @@ val http = HttpClient {
 }
 ```
 
+In an app there is no incoming request to open a trace, so the app opens one around what the person
+did. Outgoing calls inside it carry the trace, and the service continues it:
+
+```kotlin
+tracy.action("checkout.submit") {
+    http.post("https://api.example/orders") { /* … */ }
+}
+```
+
 Then log. The message is a constant you wrote; the values go into fields, and that separation is
 what keeps a caller's input out of the template table later. Logging is `suspend` by design — it
 runs inside your request, and the trace context lives in the coroutine, because Kotlin/Native has
