@@ -1,5 +1,6 @@
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
+    id("com.android.kotlin.multiplatform.library")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("io.github.youndie.sborka.kmp")
     id("io.github.youndie.sborka.lint")
@@ -29,6 +30,19 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
     iosX64()
+
+    // An app's targets (research-clients K6, M-145). Android as a target of its own rather than the
+    // jvm variant Gradle would otherwise hand an Android build: that variant drags CIO into the app
+    // and has nowhere to hang the lifecycle the agent needs there (K5). The browser is wasmJs, which
+    // is what a Compose app on the web compiles to; plain js waits for a consumer.
+    androidLibrary {
+        namespace = "io.github.youndie.tracy.shared"
+        compileSdk = 37
+        minSdk = 24
+    }
+    wasmJs {
+        browser()
+    }
 
     sourceSets {
         commonMain.dependencies {

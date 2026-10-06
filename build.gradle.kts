@@ -4,6 +4,7 @@ plugins {
     // same jar: "plugin is already on the classpath with an unknown version".
     alias(wip.plugins.kotlinMultiplatform) apply false
     alias(wip.plugins.kotlinSerialization) apply false
+    alias(wip.plugins.androidKotlinMultiplatformLibrary) apply false
     alias(libs.plugins.sborkaKmp) apply false
     alias(libs.plugins.sborkaLint) apply false
     alias(libs.plugins.sborkaPublish) apply false

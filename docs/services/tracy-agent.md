@@ -5,7 +5,7 @@ type: service
 status: active
 module: ":agent, :agent-ktor-server"
 tech_stack: [Kotlin, KMP, Ktor]
-targets: [jvm, macosArm64, linuxX64, linuxArm64, iosArm64, iosSimulatorArm64, iosX64]
+targets: [jvm, macosArm64, linuxX64, linuxArm64, iosArm64, iosSimulatorArm64, iosX64, android, wasmJs]
 owner: unassigned
 depends_on:
   - tracy-server
@@ -123,7 +123,7 @@ kotlin-logging снесла бы логбэк-конфиг приложения 
 | Тип | Имя | Для чего |
 |---|---|---|
 | Service | tracy-server | приём батчей |
-| Library | `ktor-client-curl` (native) / `ktor-client-cio` (jvm) | отправка; на нативе CIO не умеет TLS и тянет `SelectorManager` |
+| Library | `ktor-client-curl` (linux, macos) / `-darwin` (ios) / `-cio` (jvm) / `-okhttp` (android) / `-js` (wasmJs) | отправка; на нативе CIO не умеет TLS и тянет `SelectorManager`; Android берёт движок, который у приложения уже есть, браузер — свой `fetch` |
 | Library | `io.github.oshai:kotlin-logging` 8.0.4 | фасад и точка перехвата на нативе |
 | Library | `ktor-server-call-id` | чтение/генерация идентификатора запроса; под native опубликован |
 
