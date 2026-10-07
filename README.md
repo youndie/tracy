@@ -170,7 +170,9 @@ off by default rather than open by default.
   purpose: an in-process buffer cannot survive a `SIGKILL`, and stdout can.
 - **Not a complete capture on native.** Measured, not assumed: on Kotlin/Native tracy sees what
   you write through its API or through kotlin-logging. Ktor's own logger and `println` go to
-  stdout and nowhere else. On the JVM the SLF4J appender does see framework and library logs.
+  stdout and nowhere else. On macOS and iOS, where kotlin-logging writes to os_log, a logger
+  obtained before `captureKotlinLogging()` is not seen either — call it before the first logger.
+  On the JVM the SLF4J appender does see framework and library logs.
   Since framework logging is around 97% of the volume in practice, this is mostly the noise an
   `INFO` floor would drop anyway — but it is a boundary, and you should know where it runs.
 - **Not multi-tenant.** One installation belongs to one team. Isolation means a second

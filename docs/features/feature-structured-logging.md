@@ -89,7 +89,7 @@ log.error("payment provider rejected", cause = e) {
 
 | | native | JVM |
 |---|---|---|
-| Как встраиваемся | `KotlinLoggingConfiguration.direct.appender = TracyAppender` | SLF4J-аппендер |
+| Как встраиваемся | `captureKotlinLogging()`: на Linux — `KotlinLoggingConfiguration.direct.appender = TracyAppender`, на macOS/iOS — обёртка активной фабрики (os_log остаётся) | SLF4J-аппендер |
 | Что ловим | всё, что идёт через kotlin-logging | всё, что идёт через SLF4J, включая логи библиотек |
 | Что **не** ловим | `println`, внутренний логгер Ktor (гипотеза, проверить в M2) | `println` |
 
@@ -100,7 +100,7 @@ log.error("payment provider rejected", cause = e) {
 | `:shared` | `shared/src/commonMain/kotlin/io/github/youndie/tracy/wire/` — модель записи, `Level`, редакция |
 | `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/TracyLogger.kt` — API |
 | `:agent` | `agent/src/commonMain/kotlin/io/github/youndie/tracy/agent/Buffer.kt` — кольцевой буфер и батчер |
-| `:agent` | `agent/src/nativeMain/.../TracyAppender.native.kt`, `agent/src/jvmMain/.../TracySlf4jAppender.kt` |
+| `:agent` | `agent/src/commonMain/.../TracyAppender.kt`, `agent/src/nativeMain/.../CaptureKotlinLogging.native.kt`, `agent/src/jvmMain/.../TracyLogbackAppender.kt` |
 
 ## 5. Сценарии
 
@@ -154,5 +154,10 @@ log.error("payment provider rejected", cause = e) {
 * **На JVM подменять `KotlinLoggingConfiguration.loggerFactory` нельзя** — это отключит SLF4J для
   всего приложения (research §1.4, следствие 2). Библиотека, которая так делает, ломает хост-сервис
   молча.
+* **На macOS и iOS логгер, полученный до `captureKotlinLogging()`, не перехватывается.** Там
+  kotlin-logging пишет в os_log через свою фабрику, и tracy оборачивает фабрику, а не аппендер:
+  уже выданный логгер принадлежит старой. На Linux такой границы нет — direct-логгер читает
+  аппендер в момент записи. Вызывать `captureKotlinLogging()` до первого логгера (research §1.4,
+  M-149).
 * **`Appender.log` не suspend** и trace id в себе не несёт — корреляция для перехваченных чужих
   логов доступна только там, где её удаётся достать иначе (research §1.3).

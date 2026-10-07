@@ -1,7 +1,14 @@
 package io.github.youndie.tracy.agent
 
+import io.github.oshai.kotlinlogging.Appender
+import io.github.oshai.kotlinlogging.DirectLoggerFactory
+import io.github.oshai.kotlinlogging.KLogger
+import io.github.oshai.kotlinlogging.KLoggerFactory
+import io.github.oshai.kotlinlogging.KLoggingEvent
+import io.github.oshai.kotlinlogging.KLoggingEventBuilder
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.oshai.kotlinlogging.KotlinLoggingConfiguration
+import io.github.oshai.kotlinlogging.Marker
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.LogRecord
 import io.ktor.server.cio.CIO
@@ -23,13 +30,45 @@ import kotlin.test.assertTrue
  * own logger are not — verify in M2". Guessing here would be dishonest in a specific way, because
  * the answer decides what the README may promise. A user who believes tracy sees everything and
  * then loses the one line that mattered is worse off than one who was told the boundary.
+ *
+ * Two mechanisms sit behind one call, and which one runs is kotlin-logging's choice, not the
+ * platform's name: Linux defaults to the direct factory, Apple targets to os_log. The tests that
+ * use the default exercise whichever this host has; the ones that pin a factory exercise the other
+ * path too, so a Linux run alone cannot hide the Apple one again.
  */
 class NativeCaptureTest {
-    private val original = KotlinLoggingConfiguration.direct.appender
+    private val originalAppender = KotlinLoggingConfiguration.direct.appender
+    private val originalFactory = KotlinLoggingConfiguration.loggerFactory
 
     @AfterTest
     fun restore() {
-        KotlinLoggingConfiguration.direct.appender = original
+        KotlinLoggingConfiguration.loggerFactory = originalFactory
+        KotlinLoggingConfiguration.direct.appender = originalAppender
+    }
+
+    /** Stands in for a factory that is not the direct one — os_log on Apple targets. */
+    private class CountingFactory : KLoggerFactory {
+        var delegated = 0
+        var evaluated = 0
+
+        override fun logger(name: String): KLogger =
+            object : KLogger {
+                override val name = name
+
+                override fun isLoggingEnabledFor(
+                    level: io.github.oshai.kotlinlogging.Level,
+                    marker: Marker?,
+                ) = true
+
+                override fun at(
+                    level: io.github.oshai.kotlinlogging.Level,
+                    marker: Marker?,
+                    block: KLoggingEventBuilder.() -> Unit,
+                ) {
+                    KLoggingEventBuilder().apply(block)
+                    delegated++
+                }
+            }
     }
 
     private fun agent() =
@@ -76,12 +115,13 @@ class NativeCaptureTest {
     }
 
     @Test
-    fun `the previous appender keeps running`() {
+    fun `the previous appender keeps running where the factory is direct`() {
+        KotlinLoggingConfiguration.loggerFactory = DirectLoggerFactory
         val agent = agent()
         var delegated = 0
         KotlinLoggingConfiguration.direct.appender =
-            object : io.github.oshai.kotlinlogging.Appender {
-                override fun log(loggingEvent: io.github.oshai.kotlinlogging.KLoggingEvent) {
+            object : Appender {
+                override fun log(loggingEvent: KLoggingEvent) {
                     delegated++
                 }
             }
@@ -92,6 +132,70 @@ class NativeCaptureTest {
         // stdout must survive: tracy is not the only copy of the logs (research D10).
         assertEquals(1, delegated)
         assertEquals(1, agent.drainBatch().filterIsInstance<LogRecord>().size)
+    }
+
+    @Test
+    fun `the previous factory keeps running where it is not direct`() {
+        val previous = CountingFactory()
+        KotlinLoggingConfiguration.loggerFactory = previous
+        val agent = agent()
+        agent.captureKotlinLogging()
+
+        KotlinLogging.logger("X").info { "hello" }
+
+        // os_log on Apple targets is the host's copy, the same way stdout is on Linux: the host
+        // is not switched to the direct factory to make room for tracy.
+        assertEquals(1, previous.delegated)
+        assertEquals(1, agent.drainBatch().filterIsInstance<LogRecord>().size)
+    }
+
+    @Test
+    fun `a message is built once for both destinations`() {
+        KotlinLoggingConfiguration.loggerFactory = CountingFactory()
+        val agent = agent()
+        agent.captureKotlinLogging()
+        var built = 0
+
+        KotlinLogging.logger("X").info {
+            built++
+            "hello"
+        }
+
+        assertEquals(1, built)
+        assertEquals(
+            "hello",
+            agent
+                .drainBatch()
+                .filterIsInstance<LogRecord>()
+                .single()
+                .message,
+        )
+    }
+
+    @Test
+    fun `a logger obtained before capture is seen where the factory is direct`() {
+        KotlinLoggingConfiguration.loggerFactory = DirectLoggerFactory
+        val early = KotlinLogging.logger("Early")
+        val agent = agent()
+        agent.captureKotlinLogging()
+
+        early.info { "written by a logger older than tracy" }
+
+        assertEquals(1, agent.drainBatch().filterIsInstance<LogRecord>().size)
+    }
+
+    @Test
+    fun `a logger obtained before capture is not seen where the factory is wrapped`() {
+        KotlinLoggingConfiguration.loggerFactory = CountingFactory()
+        val early = KotlinLogging.logger("Early")
+        val agent = agent()
+        agent.captureKotlinLogging()
+
+        early.info { "written by a logger older than tracy" }
+
+        // The boundary on Apple targets: a logger already handed out belongs to the old factory.
+        // If this ever starts failing, the KDoc of captureKotlinLogging needs rewriting.
+        assertTrue(agent.drainBatch().filterIsInstance<LogRecord>().isEmpty())
     }
 
     @Test

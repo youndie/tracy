@@ -62,7 +62,8 @@ publishes:
 | `agent/src/commonMain/.../EntityRefs.kt` | дедупликация ссылок по `(key, value, trace_id)`, соблюдение `suppressedKeys` из ответа сервера |
 | `agent/src/commonMain/.../Sender.kt` | отправка, ретраи, счётчики |
 | `agent/src/commonMain/.../Redaction.kt` | правила маскирования |
-| `agent/src/nativeMain/.../TracyAppender.native.kt` | перехват kotlin-logging на нативе |
+| `agent/src/commonMain/.../TracyAppender.kt` | аппендер kotlin-logging: строка хоста, потом копия в tracy |
+| `agent/src/nativeMain/.../CaptureKotlinLogging.native.kt` | `captureKotlinLogging()`: аппендер там, где фабрика direct (Linux), обёртка фабрики там, где нет (macOS/iOS, os_log) |
 | `agent/src/jvmMain/.../TracySlf4jAppender.kt` | перехват SLF4J на JVM |
 | `agent/src/nativeMain/.../HostResolver.native.kt` | `getaddrinfo` — образец в metrik |
 
@@ -94,8 +95,9 @@ withSpan("persistOrder") { orders.save(order) }
 
 Три вещи, которые не видны из одного файла:
 
-**Точка перехвата разная на платформах** (research §Р3). На нативе — подмена
-`KotlinLoggingConfiguration.direct.appender`; на JVM — SLF4J-аппендер, потому что подмена фабрики
+**Точка перехвата разная на платформах** (research §Р3). На Linux — подмена
+`KotlinLoggingConfiguration.direct.appender`; на macOS и iOS — обёртка активной фабрики, потому
+что там kotlin-logging пишет в os_log и аппендер не читает (research §1.4, M-149); на JVM — SLF4J-аппендер, потому что подмена фабрики
 kotlin-logging снесла бы логбэк-конфиг приложения и логи библиотек.
 
 **Корреляция берётся только из корутинного контекста** (research §1.3). `ThreadContextElement`
@@ -167,6 +169,9 @@ kotlin-logging снесла бы логбэк-конфиг приложения 
 
 * **Не перехватывает stdout** — намеренно (research §Р10): stdout остаётся страховкой на случай
   падения процесса и недоступности сервера.
+* **На macOS и iOS логгер, полученный до `captureKotlinLogging()`, не ловится** — он
+  принадлежит фабрике os_log, которую tracy обернула уже после (M-149). Закреплено тестом
+  `NativeCaptureTest`, как и обратное поведение на Linux.
 * **`println` и внутренний логгер Ktor на нативе не ловятся** (гипотеза, проверить в M2) — это
   граница, которую надо написать в README, а не подразумевать.
 * **`SelectorManager` нельзя вешать на `Dispatchers.Default`**: один селектор в чужом процессе —

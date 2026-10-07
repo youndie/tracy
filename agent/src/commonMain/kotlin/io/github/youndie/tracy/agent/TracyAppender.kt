@@ -23,33 +23,48 @@ public class TracyAppender(
 ) : Appender {
     @Suppress(
         "ktlint:kapkan:swallowed-failure",
-        "both swallows are the appender's contract: neither the host's line nor its call may be lost",
+        "the appender's contract: the host's line may not be lost and neither may its call",
     )
     override fun log(loggingEvent: KLoggingEvent) {
         // The host's own output first: whatever happens next must not cost it a line.
         runCatching { delegate.log(loggingEvent) }
+        sink.capture(loggingEvent)
+    }
+}
 
-        val level = loggingEvent.level.toTracy() ?: return
-        if (!sink.isEnabled(level)) return
+/** Whether a kotlin-logging event at [level] would be kept by this sink. */
+internal fun RecordSink.wants(level: io.github.oshai.kotlinlogging.Level): Boolean =
+    level.toTracy()?.let(::isEnabled) ?: false
 
-        val builder = LogBuilder()
-        loggingEvent.payload?.forEach { (key, value) ->
-            if (value != null) builder.field(key, value.toString())
-        }
+/**
+ * Hands one captured kotlin-logging event to the sink: the half of [TracyAppender] that is
+ * tracy's, shared with the logger wrapper used where direct logging is not the active mechanism.
+ */
+@Suppress(
+    "ktlint:kapkan:swallowed-failure",
+    "the host's call may not be lost because tracy failed to take a copy of it",
+)
+internal fun RecordSink.capture(loggingEvent: KLoggingEvent) {
+    val level = loggingEvent.level.toTracy() ?: return
+    if (!isEnabled(level)) return
 
-        runCatching {
-            sink.accept(
-                level = level,
-                logger = loggingEvent.loggerName,
-                message = loggingEvent.message.orEmpty(),
-                cause = loggingEvent.cause,
-                builder = builder,
-                trace = null,
-                // Captured, not written through tracy's API: the framework already substituted
-                // its arguments into this string.
-                untrusted = true,
-            )
-        }
+    val builder = LogBuilder()
+    loggingEvent.payload?.forEach { (key, value) ->
+        if (value != null) builder.field(key, value.toString())
+    }
+
+    runCatching {
+        accept(
+            level = level,
+            logger = loggingEvent.loggerName,
+            message = loggingEvent.message.orEmpty(),
+            cause = loggingEvent.cause,
+            builder = builder,
+            trace = null,
+            // Captured, not written through tracy's API: the framework already substituted
+            // its arguments into this string.
+            untrusted = true,
+        )
     }
 }
 
