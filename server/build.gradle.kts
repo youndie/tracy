@@ -130,5 +130,10 @@ kotlin {
             implementation(ktorLibs.server.testHost)
             implementation(ktorLibs.client.contentNegotiation)
         }
+        jvmTest.dependencies {
+            // The other two halves of a trace that starts in an app (M-147): the agent an app writes
+            // with and the plugin a service continues it with, run against this server in one test.
+            implementation(projects.agentKtorServer)
+        }
     }
 }
