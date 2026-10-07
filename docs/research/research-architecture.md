@@ -108,12 +108,19 @@ thread-local, который кто-то обновлял бы на каждом
 | `public interface Appender { fun log(loggingEvent: KLoggingEvent) }` | `commonMain/io/github/oshai/kotlinlogging/Appender.kt` |
 | Подмена через `KotlinLoggingConfiguration.direct.appender` (а также `logLevel`, `formatter`) | `commonMain/.../KotlinLoggingConfiguration.kt` |
 | **На Native/JS/Wasm direct-логирование — механизм по умолчанию**; на JVM/Android оно работает, только если `loggerFactory = DirectLoggerFactory` | KDoc там же |
+| **Поправка 2026-10-07: на Apple-таргетах (macOS, iOS) умолчание — `DarwinLoggerFactory`**, она пишет в os_log и `direct.appender` не читает вовсе; KDoc из строки выше говорит «JVM/Android/Darwin», а не «весь натив». Строка выше верна только для Linux | `darwinMain/.../KotlinLoggingConfiguration.kt`: `AtomicReference<KLoggerFactory>(DarwinLoggerFactory)`; сама библиотека печатает `configuring 'direct.appender' but the active logger factory is not 'DirectLoggerFactory' (active: DarwinLoggerFactory)` в выводе `macosArm64Test` |
 | `KLoggingEvent` несёт `payload: Map<String, Any?>?` — структурные поля в фасаде уже есть | `commonMain/.../KLoggingEvent.kt` |
 | Нативная реализация конфигурации потокобезопасна через `AtomicReference` | `darwinMain/.../KotlinLoggingConfiguration.kt` |
 | `Appender.log` — **не** suspend и параметров контекста не имеет | сигнатура в `Appender.kt` |
 
-**Следствие 1.** На нативе перехват чужого логирования — две строки:
+**Следствие 1.** На Linux перехват чужого логирования — две строки:
 `KotlinLoggingConfiguration.direct.appender = TracyAppender`. Ничего писать под это не надо.
+На Apple-таргетах эти две строки молча не делают ничего — `NativeCaptureTest` на `macosArm64`
+падал с первого дня, а CI гоняет только Linux. Переключать хост на `DirectLoggerFactory` нельзя
+по той же причине, что и на JVM (следствие 2): его логи уйдут из unified log в stdout. Поэтому там
+`captureKotlinLogging()` оборачивает активную фабрику: os_log получает каждую строку, tracy —
+копию. Цена — граница: логгер, полученный **до** вызова, принадлежит старой фабрике, и его записи
+tracy не видит (M-149).
 
 **Следствие 2.** На JVM подмена аппендера означает **отключение SLF4J** для всего приложения —
 неприемлемо: сервис теряет свои логбэк-конфиги и логи библиотек, которые пишут в SLF4J напрямую.
@@ -375,7 +382,7 @@ metrik шлёт UDP fire-and-forget, и для него это правильн�
 
 | | native | JVM |
 |---|---|---|
-| Перехват чужих логов | `KotlinLoggingConfiguration.direct.appender = TracyAppender` (1.4) | **SLF4J-аппендер**; подменять фабрику kotlin-logging нельзя — снесёт логбэк-конфиг приложения и логи библиотек |
+| Перехват чужих логов | Linux: `KotlinLoggingConfiguration.direct.appender = TracyAppender`; Apple: обёртка активной фабрики (1.4, M-149) | **SLF4J-аппендер**; подменять фабрику kotlin-logging нельзя — снесёт логбэк-конфиг приложения и логи библиотек |
 | Логи самого Ktor | **проверено в M-27: не перехватываются** — 0 записей (`NativeCaptureTest`) | приезжают через SLF4J штатно |
 | Корреляция | только через `coroutineContext` (1.3) | доступен и MDC |
 
