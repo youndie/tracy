@@ -23,6 +23,8 @@ public data class BatchHeader(
     /** Bytes the service produced since the last batch — before sampling, before dropping. */
     val producedBytes: Long = 0,
     val dropped: Long = 0,
+    /** Lines of this batch the server could not parse and skipped (M-152). */
+    val malformed: Long = 0,
     /**
      * The agent's clock when it put this batch on the wire (`X-Tracy-Sent`). Null from an agent
      * older than 0.2.1, and then the clock difference is simply unknown rather than guessed —
@@ -83,6 +85,34 @@ public class IngestRepository(
         now: Long,
     ): Long = dictionaries.serviceId(executor, name, now)
 
+    /**
+     * The service's id for counting a refusal — created if it is new, and **without** touching
+     * `last_seen`, which says when the service was last heard from and a refused batch was not.
+     */
+    internal suspend fun refusedServiceId(
+        executor: QueryExecutor,
+        name: String,
+        now: Long,
+    ): Long {
+        executor.executeOrThrow(
+            Statement
+                .create(
+                    """INSERT INTO service (name, first_seen, last_seen) VALUES (:name, :now, :now)
+                       ON CONFLICT(name) DO NOTHING""",
+                ).apply {
+                    bind("name", name)
+                    bind("now", now)
+                },
+        )
+        return executor
+            .fetchAll(Statement.create("SELECT id FROM service WHERE name = :name").apply { bind("name", name) })
+            .getOrThrow()
+            .rows
+            .first()
+            .get(0)
+            .asLong()
+    }
+
     internal suspend fun instanceId(
         executor: QueryExecutor,
         serviceId: Long,
@@ -102,19 +132,24 @@ public class IngestRepository(
         now: Long,
         producedBytes: Long,
         dropped: Long,
+        malformed: Long = 0,
+        refused: Long = 0,
     ) {
         executor.executeOrThrow(
             Statement
                 .create(
-                    """INSERT INTO service_produced (service_id, minute, bytes, dropped)
-                       VALUES (:service, :minute, :bytes, :dropped)
+                    """INSERT INTO service_produced (service_id, minute, bytes, dropped, malformed, refused)
+                       VALUES (:service, :minute, :bytes, :dropped, :malformed, :refused)
                        ON CONFLICT(service_id, minute)
-                       DO UPDATE SET bytes = bytes + :bytes, dropped = dropped + :dropped""",
+                       DO UPDATE SET bytes = bytes + :bytes, dropped = dropped + :dropped,
+                                     malformed = malformed + :malformed, refused = refused + :refused""",
                 ).apply {
                     bind("service", serviceId)
                     bind("minute", now / 60_000 * 60_000)
                     bind("bytes", producedBytes)
                     bind("dropped", dropped)
+                    bind("malformed", malformed)
+                    bind("refused", refused)
                 },
         )
     }

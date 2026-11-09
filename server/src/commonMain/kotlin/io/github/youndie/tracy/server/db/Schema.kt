@@ -164,8 +164,23 @@ internal val migrationV5: List<String> =
         """CREATE INDEX ingest_batch_received ON ingest_batch (received_at);""",
     )
 
+/**
+ * What the server refused or could not read, per service and minute, beside what it was told was
+ * produced (M-152).
+ *
+ * Before this a line that failed to parse was counted into the `202` body and nowhere else, and a
+ * batch refused with `400` or `413` was not counted at all: had the agent and the server ever
+ * disagreed on the line format, records would have vanished exactly as they did in M-150, with
+ * nothing on the server to say so.
+ */
+internal val migrationV6: List<String> =
+    listOf(
+        """ALTER TABLE service_produced ADD COLUMN malformed INTEGER NOT NULL DEFAULT 0;""",
+        """ALTER TABLE service_produced ADD COLUMN refused INTEGER NOT NULL DEFAULT 0;""",
+    )
+
 internal val allMigrations: List<List<String>> =
-    listOf(migrationV1, migrationV2, migrationV3, migrationV4, migrationV5)
+    listOf(migrationV1, migrationV2, migrationV3, migrationV4, migrationV5, migrationV6)
 
 /**
  * The tables one day owns, and the only list of them.
