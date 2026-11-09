@@ -10,6 +10,8 @@ import io.github.youndie.tracy.server.openDatabase
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.LogRecord
+import io.github.youndie.tracy.wire.Span
+import io.github.youndie.tracy.wire.SpanKind
 import io.github.youndie.tracy.wire.TracyJson
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -24,6 +26,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -210,6 +213,73 @@ class ServiceSummaryTest {
             assertEquals(1, summary.instances)
             assertEquals(2, summary.instancesEverSeen)
             assertEquals(24 * 60 * 60 * 1000L, summary.windowMs)
+        }
+
+    private fun span(
+        ts: Long,
+        n: Int,
+    ) = Span(
+        traceId = "4bf92f3577b34da6a3ce929d0e0e47" + n.toString().padStart(2, '0'),
+        spanId = "00f067aa0ba902" + n.toString().padStart(2, '0'),
+        name = "GET /orders/{id}",
+        kind = SpanKind.SERVER,
+        ts = ts,
+        durationMs = 3,
+        status = 200,
+    )
+
+    @Test
+    fun `a service whose batches carry spans and no records is flagged`() =
+        runTest {
+            val db = openDatabase("/tmp/tracy-summary-spans-${Random.nextLong()}.db")
+            // What konekt-server and the production producers sent for six weeks (M-150): the
+            // plugin's request spans, and nothing from the service's own logging.
+            IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
+                BatchHeader("orders-api", "pod-a", "1.0", 1, producedBytes = 900),
+                (1..3).map { span(day + it, it) },
+            )
+
+            val summary = QueryRepository(db, clock = { day + 1_000 }).listServices().single()
+
+            assertEquals(0, summary.storedRecords)
+            assertEquals(3, summary.storedSpans)
+            assertTrue(summary.spansWithoutRecords, "spans with no record beside them are a fault, not sampling")
+        }
+
+    @Test
+    fun `a service that logs inside its traces is not flagged`() =
+        runTest {
+            val db = openDatabase("/tmp/tracy-summary-both-${Random.nextLong()}.db")
+            IngestBatchUseCase(IngestRepository(db, clock = { day }), clock = { day })(
+                BatchHeader("orders-api", "pod-a", "1.0", 1),
+                listOf(
+                    span(day + 1, 1),
+                    LogRecord(ts = day + 1, seq = 1, level = Level.INFO, logger = "L", message = "order created"),
+                ),
+            )
+
+            val summary = QueryRepository(db, clock = { day + 1_000 }).listServices().single()
+
+            assertEquals(1, summary.storedRecords)
+            assertEquals(1, summary.storedSpans)
+            assertFalse(summary.spansWithoutRecords)
+        }
+
+    @Test
+    fun `spans older than the window do not raise the flag`() =
+        runTest {
+            val db = openDatabase("/tmp/tracy-summary-old-spans-${Random.nextLong()}.db")
+            val old = day - 3 * 86_400_000L
+            IngestBatchUseCase(IngestRepository(db, clock = { old }), clock = { old })(
+                BatchHeader("orders-api", "pod-a", "1.0", 1),
+                listOf(span(old, 1)),
+            )
+
+            val summary = QueryRepository(db, clock = { day }).listServices().single()
+
+            // The flag is about now; a service that stopped three days ago is `lastSeen`'s to report.
+            assertEquals(1, summary.storedSpans)
+            assertFalse(summary.spansWithoutRecords)
         }
 
     @Test

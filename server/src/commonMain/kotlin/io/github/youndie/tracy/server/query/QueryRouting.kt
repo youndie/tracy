@@ -6,6 +6,7 @@ import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLongOrNull
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
 import io.github.youndie.tracy.server.db.EntityKeyBudget
+import io.github.youndie.tracy.server.db.dayKey
 import io.github.youndie.tracy.wire.Level
 import io.github.youndie.tracy.wire.TracyJson
 import io.ktor.http.ContentType
@@ -35,10 +36,31 @@ public data class ServiceSummary(
     /** The window [instances], [maxClockSkewMs] and [maxRecordAgeMs] were taken over. */
     public val windowMs: Long,
     public val lastSeen: Long,
-    /** What the service made, before sampling: the "who is noisy" number (research D13). */
+    /**
+     * Bytes the agent put into its buffer — records, spans, entity references and template counters
+     * alike — summed over every batch ever received; **not windowed**, unlike [instances].
+     *
+     * Counted after the agent's tail decision, not before it: a line the tail dropped never reaches
+     * the buffer and is not counted (M-151). So this is not "bytes of logs" and it is not comparable
+     * with [storedRecords], which counts rows of one kind; a service sending only spans has a large
+     * value here and no records at all.
+     */
     public val producedBytes: Long,
-    /** What survived to disk. The gap between the two is the point of showing both. */
+    /** Log records on disk, across every day retention still keeps. Spans are not in this number. */
     public val storedRecords: Long,
+    /** Spans on disk, across the same days as [storedRecords]. */
+    public val storedSpans: Long = 0,
+    /**
+     * Inside [windowMs] tracy stored spans of this service and not a single log record.
+     *
+     * Not a sampling artefact: spans follow their trace, and a kept trace keeps every record written
+     * in it, so a stored span with no record beside it means the service wrote none — usually
+     * because its log capture is not attached (`captureKotlinLogging()` on native, the SLF4J
+     * appender on the JVM) and only the plugin's request spans arrive. konekt-server and four
+     * production producers sent spans only for six weeks while this summary called the gap expected
+     * (M-150, M-151).
+     */
+    public val spansWithoutRecords: Boolean = false,
     /**
      * Difference between the agent's clock and the server's — see `X-Tracy-Sent` — across the
      * instances inside [windowMs].
@@ -266,6 +288,17 @@ internal suspend fun serviceSummaries(
                 .rows
                 .map { it.get(0).asString() }
 
+        val spanPartitions =
+            fetchAll("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'span_%'")
+                .getOrThrow()
+                .rows
+                .map { it.get(0).asString() }
+
+        // Only the days the window touches are read for the windowed counts: a partition is a day,
+        // and its name says which (`dayKey`), so the older ones cannot hold a row inside the window.
+        val firstDay = dayKey(since)
+        val inWindow = { table: String -> table.substringAfterLast('_') >= firstDay }
+
         // `max(CASE ...)` rather than a `WHERE`: the service still has to appear when none of its
         // instances is inside the window, and then the maxima come back NULL — which is the answer,
         // and a different answer from zero.
@@ -283,15 +316,28 @@ internal suspend fun serviceSummaries(
                 ).apply { bind("since", since) },
         ).getOrThrow().rows.map { row ->
             val serviceId = row.get(0).asLong()
-            var stored = 0L
-            for (table in partitions) {
-                stored +=
-                    fetchAll(
-                        Statement
-                            .create("SELECT count(*) FROM $table WHERE service_id = :id")
-                            .apply { bind("id", serviceId) },
-                    ).getOrThrow().rows.first().get(0).asLong()
-            }
+
+            suspend fun count(
+                table: String,
+                windowed: Boolean,
+            ): Long =
+                fetchAll(
+                    Statement
+                        .create(
+                            "SELECT count(*) FROM $table WHERE service_id = :id" +
+                                if (windowed) " AND ts >= :since" else "",
+                        ).apply {
+                            bind("id", serviceId)
+                            if (windowed) bind("since", since)
+                        },
+                ).getOrThrow().rows.first().get(0).asLong()
+
+            val stored = partitions.sumOf { count(it, windowed = false) }
+            val spans = spanPartitions.sumOf { count(it, windowed = false) }
+            val spansInWindow = spanPartitions.filter(inWindow).sumOf { count(it, windowed = true) }
+            val recordsInWindow =
+                if (spansInWindow == 0L) 0L else partitions.filter(inWindow).sumOf { count(it, windowed = true) }
+
             val produced =
                 fetchAll(
                     Statement
@@ -320,10 +366,10 @@ internal suspend fun serviceSummaries(
                 instancesEverSeen = row.get(3).asLong().toInt(),
                 windowMs = windowMs,
                 lastSeen = row.get(2).asLong(),
-                // Two numbers, and the gap between them is the point: produced is what the service
-                // made, stored is what tracy decided to keep (research D13).
                 producedBytes = produced,
                 storedRecords = stored,
+                storedSpans = spans,
+                spansWithoutRecords = spansInWindow > 0 && recordsInWindow == 0L,
                 maxClockSkewMs = row.get(5).asLongOrNull(),
                 maxRecordAgeMs = row.get(6).asLongOrNull(),
                 duplicateBatches = row.get(7).asLongOrNull() ?: 0,
