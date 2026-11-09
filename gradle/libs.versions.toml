@@ -8,7 +8,7 @@ sborka = "0.4.0.111"
 # published together, and a plugin from one version with a library from another would compile and
 # then disagree about the object it generates. kore-mcp rides the same number: 0.1.13 and 0.1.14 add
 # a reproducible build time and the MCP module, and change nothing in the lifecycle tracy wires up.
-kore = "0.1.14"
+kore = "0.1.15"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerializationJson = "1.11.0"
 kotlinxDatetime = "0.8.0"
