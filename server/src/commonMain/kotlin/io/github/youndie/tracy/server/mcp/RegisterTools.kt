@@ -71,9 +71,12 @@ internal fun Server.registerTools(facade: ToolFacade) {
     addTool(
         name = "list_services",
         description =
-            "Services reporting to tracy: instances, last activity, clock skew, indexed entity keys, " +
-                "and two byte counts. `producedBytes` is what the service made, `storedRecords` is what " +
-                "tracy kept after sampling — the gap between them is expected, not a fault.",
+            "Services reporting to tracy: instances, last activity, clock skew, indexed entity keys, and what " +
+                "is on disk. `storedRecords` counts log records only and `storedSpans` spans only; " +
+                "`producedBytes` is every line the agent buffered (spans included), summed over all time, so " +
+                "it is not comparable with either. `spansWithoutRecords: true` is a FAULT, not sampling: in " +
+                "the last day tracy kept this service's spans and not one log record, which almost always " +
+                "means its log capture is not attached and only request spans arrive.",
         inputSchema = schema(properties = JsonObject(emptyMap())),
         toolAnnotations = readOnly,
     ) { _ ->
