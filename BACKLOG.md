@@ -1368,6 +1368,24 @@ M-52 (гипотеза Р8 про топ-100 шаблонов) остаётся 
 
       **Не входит:** алерты на содержимое логов (частота шаблона, ошибки) — это метрики, не tracy.
 
+      **Отложено владельцем (09.11.2026).** Форма выбрана — воркер в tracy-server читает сводку
+      (`spansWithoutRecords` из M-151, молчание по `lastSeen`) и шлёт в Telegram при переходе
+      состояния. Остановило то, что у tracy-server **нет исходящего HTTPS**: бинарь статический,
+      образ `FROM scratch` без CA-сертификатов (`server/Dockerfile`, комментарий перед `FROM scratch`
+      это и предсказал), а CIO-клиент на Kotlin/Native TLS не умеет. metrik шлёт в Telegram через
+      Curl и держит для этого `distroless/cc` с `libcurl` и сертификатами
+      (`server/src/nativeMain/.../alert/NotifierHttpClient.native.kt` в metrik). Варианты, когда
+      пункт вернётся:
+
+      * **Curl + CA в tracy** — статический `libcurl`/OpenSSL в сборку `linuxX64` и CA-бандл в
+        образ; пересмотр размеров и памяти, замеренных в M13.
+      * **Через metrik** — tracy-server шлёт по HTTP внутри кластера в metrik (новый вход или правило
+        под внешний сигнал в youndie/metrik); доставка, заглушение и cooldown там уже есть, TLS в
+        tracy не нужен. Два репозитория.
+
+      Пока сигнал пассивный: `spansWithoutRecords`, `malformedLines`, `refusedBatches` в
+      `list_services` (M-151, M-152) и описание инструмента, которое называет их неисправностью.
+
 ## Сознательно отложено
 
 - **M-90** Связь с katcher и metrik по `trace_id`: краш → трасса → логи → окно метрик. Стоит
