@@ -6,6 +6,7 @@ import io.github.youndie.kore.koin.installKoreKoin
 import io.github.youndie.tracy.server.ServerConfig
 import io.github.youndie.tracy.server.db.IngestRepository
 import io.github.youndie.tracy.server.openDatabase
+import io.github.youndie.tracy.server.query.serviceSummaries
 import io.github.youndie.tracy.server.serverModule
 import io.github.youndie.tracy.wire.IngestHeaders
 import io.github.youndie.tracy.wire.Level
@@ -155,6 +156,63 @@ class IngestRoutingTest {
                 val big = NdJson.encodeBatch((1L..200L).map { record(it) })
 
                 assertEquals(413, client.send(port, big).status.value)
+            }
+        }
+
+    /** The summary as `list_services` reads it, at the minute the server last counted something. */
+    private suspend fun ISQLite.summary() =
+        serviceSummaries(this, now = scalar("SELECT max(minute) FROM service_produced") ?: 0).single()
+
+    @Test
+    fun `a malformed line is counted where the summary can read it`() =
+        runTest {
+            withServer { client, port, db ->
+                val body = listOf(NdJson.encodeLine(record(1)), "{ this is not json").joinToString("\n")
+
+                assertEquals(202, client.send(port, body).status.value)
+
+                // M-152: this number used to go into the 202 body and nowhere else.
+                assertEquals(1, db.summary().malformedLines)
+            }
+        }
+
+    @Test
+    fun `a redelivered batch does not count its malformed line twice`() =
+        runTest {
+            withServer { client, port, db ->
+                val body = listOf(NdJson.encodeLine(record(1)), "{ this is not json").joinToString("\n")
+
+                client.send(port, body)
+                client.send(port, body)
+
+                assertEquals(1, db.summary().malformedLines)
+            }
+        }
+
+    @Test
+    fun `a batch refused as too large is counted against its service`() =
+        runTest {
+            withServer { client, port, db ->
+                val big = NdJson.encodeBatch((1L..200L).map { record(it) })
+
+                assertEquals(413, client.send(port, big).status.value)
+
+                val summary = db.summary()
+                assertEquals("orders-api", summary.name)
+                assertEquals(1, summary.refusedBatches)
+                // Not heard from: nothing of it was stored, and `lastSeen` stays where a stored
+                // batch would have left it — at the moment the row was made.
+                assertEquals(0, summary.instancesEverSeen)
+            }
+        }
+
+    @Test
+    fun `a refusal without a valid key is not counted against the name it claims`() =
+        runTest {
+            withServer { client, port, db ->
+                assertEquals(401, client.send(port, "", key = "tr_wrong").status.value)
+
+                assertEquals(0, db.scalar("SELECT count(*) FROM service"))
             }
         }
 

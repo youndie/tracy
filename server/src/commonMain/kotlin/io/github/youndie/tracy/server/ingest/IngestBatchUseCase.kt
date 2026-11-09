@@ -91,12 +91,37 @@ public class IngestBatchUseCase(
                 accepted++
             }
 
-            if (header.producedBytes > 0 || header.dropped > 0) {
-                repository.recordProduced(this, serviceId, now, header.producedBytes, header.dropped)
+            // After the duplicate check on purpose: a redelivered batch's unreadable lines were
+            // counted when it first arrived.
+            if (header.producedBytes > 0 || header.dropped > 0 || header.malformed > 0) {
+                repository.recordProduced(this, serviceId, now, header.producedBytes, header.dropped, header.malformed)
             }
             repository.markBatch(this, instanceId, header.runId, header.seq, now)
 
             WriteResult(accepted, duplicate = false)
+        }
+    }
+
+    /**
+     * Counts one batch refused as too large (`413`) for [service] (M-152).
+     *
+     * The one refusal counted, and the decision is in what the others are. A `413` is a batch the
+     * agent drops, from a sender whose key was valid and whose service is named: real loss with an
+     * owner. A `401` is not counted per service, because the name in an unauthenticated request is
+     * not evidence of anything and a row per claimed name would be a write anyone could make — a
+     * wrong key shows the other way round, as a service that stops appearing (`lastSeen`). A `400`
+     * either has no service to count against (a missing header) or names one in `app:`, which the
+     * installation key may not create; a `429` is the server protecting itself, and a write per
+     * refusal would undo it.
+     *
+     * Its own transaction, outside any batch's, and it does not move `lastSeen`: a service whose every
+     * batch is refused has not been heard from.
+     */
+    public suspend fun refused(service: String) {
+        val now = clock()
+        repository.transaction {
+            val serviceId = repository.refusedServiceId(this, service, now)
+            repository.recordProduced(this, serviceId, now, producedBytes = 0, dropped = 0, refused = 1)
         }
     }
 }

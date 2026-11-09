@@ -32,7 +32,7 @@ claude mcp add --transport http tracy https://tracy.example/mcp \
 
 | Инструмент | Аннотации | Что отдаёт |
 |---|---|---|
-| `list_services` | `readOnly` | сервисы, инстансы **за окно `windowMs`** (сутки) рядом с `instancesEverSeen`, последняя активность, `producedBytes` (байты всех строк, положенных агентом в буфер, за всё время), `storedRecords` и `storedSpans` (записи и спаны на диске) и признак `spansWithoutRecords` — за окно спаны есть, записей ни одной: **неисправность**, а не семплирование (M-151) |
+| `list_services` | `readOnly` | сервисы, инстансы **за окно `windowMs`** (сутки) рядом с `instancesEverSeen`, последняя активность, `producedBytes` (байты всех строк, положенных агентом в буфер, за всё время), `storedRecords` и `storedSpans` (записи и спаны на диске) и признак `spansWithoutRecords` — за окно спаны есть, записей ни одной: **неисправность**, а не семплирование (M-151); за окно — `malformedLines` (нераспознанные строки) и `refusedBatches` (батчи, отказанные `413`) (M-152) |
 | `search_logs(service?, instance?, level?, since?, until?, query?, templateId?, exceptionClass?, entityKey?, entityValue?, limit)` | `readOnly` | **структура** записей: время, сервис, уровень, логгер, шаблон, `traceId`, ключи полей |
 | `get_trace(traceId, limit, depth?)` | `readOnly` | **дерево спанов с длительностями + вписанные записи логов** по всем сервисам |
 | `get_entity(key, value, since?, until?, limit)` | `readOnly` | **хронология бизнес-сущности** через все сервисы и трассы |

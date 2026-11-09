@@ -76,7 +76,9 @@ internal fun Server.registerTools(facade: ToolFacade) {
                 "`producedBytes` is every line the agent buffered (spans included), summed over all time, so " +
                 "it is not comparable with either. `spansWithoutRecords: true` is a FAULT, not sampling: in " +
                 "the last day tracy kept this service's spans and not one log record, which almost always " +
-                "means its log capture is not attached and only request spans arrive.",
+                "means its log capture is not attached and only request spans arrive. `malformedLines` and " +
+                "`refusedBatches` (batches refused as too large) count, over the same day, what reached tracy " +
+                "and was lost there; non-zero is a fault.",
         inputSchema = schema(properties = JsonObject(emptyMap())),
         toolAnnotations = readOnly,
     ) { _ ->

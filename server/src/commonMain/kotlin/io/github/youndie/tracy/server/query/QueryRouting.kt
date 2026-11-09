@@ -62,6 +62,19 @@ public data class ServiceSummary(
      */
     public val spansWithoutRecords: Boolean = false,
     /**
+     * Lines inside [windowMs] that arrived in an accepted batch and could not be parsed. They are
+     * skipped — one bad line does not cost the batch — and until M-152 this number went into the
+     * `202` body and nowhere else, so a format disagreement between agent and server would have
+     * lost records with nothing on the server to say so.
+     */
+    public val malformedLines: Long = 0,
+    /**
+     * Batches inside [windowMs] refused as too large (`413`): the agent drops them, so these are
+     * records lost with a known owner. Other refusals are not counted per service — see
+     * `IngestBatchUseCase.refused` for why each is not.
+     */
+    public val refusedBatches: Long = 0,
+    /**
      * Difference between the agent's clock and the server's — see `X-Tracy-Sent` — across the
      * instances inside [windowMs].
      *
@@ -345,6 +358,18 @@ internal suspend fun serviceSummaries(
                         .apply { bind("id", serviceId) },
                 ).getOrThrow().rows.first().get(0).asLong()
 
+            val loss =
+                fetchAll(
+                    Statement
+                        .create(
+                            """SELECT coalesce(sum(malformed), 0), coalesce(sum(refused), 0) FROM service_produced
+                               WHERE service_id = :id AND minute >= :since""",
+                        ).apply {
+                            bind("id", serviceId)
+                            bind("since", since / 60_000 * 60_000)
+                        },
+                ).getOrThrow().rows.first()
+
             val refs = mutableMapOf<String, Long>()
             for (table in refPartitions) {
                 fetchAll(
@@ -370,6 +395,8 @@ internal suspend fun serviceSummaries(
                 storedRecords = stored,
                 storedSpans = spans,
                 spansWithoutRecords = spansInWindow > 0 && recordsInWindow == 0L,
+                malformedLines = loss.get(0).asLong(),
+                refusedBatches = loss.get(1).asLong(),
                 maxClockSkewMs = row.get(5).asLongOrNull(),
                 maxRecordAgeMs = row.get(6).asLongOrNull(),
                 duplicateBatches = row.get(7).asLongOrNull() ?: 0,

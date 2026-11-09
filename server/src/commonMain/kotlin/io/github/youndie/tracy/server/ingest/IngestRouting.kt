@@ -20,6 +20,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import org.koin.ktor.ext.inject
+import kotlin.coroutines.cancellation.CancellationException
 
 public fun Route.ingestRoutes() {
     val config by inject<ServerConfig>()
@@ -90,6 +91,7 @@ public fun Route.ingestRoutes() {
         val body = call.receiveText()
         val ceiling = if (app != null) minOf(config.clientMaxBatchBytes, config.maxBatchBytes) else config.maxBatchBytes
         if (body.encodeToByteArray().size > ceiling) {
+            acceptBatch.countRefusal(service)
             call.respondJson(HttpStatusCode.PayloadTooLarge, """{"error":"batch too large"}""")
             return@post
         }
@@ -107,6 +109,7 @@ public fun Route.ingestRoutes() {
                 seq = seq,
                 producedBytes = call.request.header(IngestHeaders.PRODUCED)?.toLongOrNull() ?: 0,
                 dropped = call.request.header(IngestHeaders.DROPPED)?.toLongOrNull() ?: 0,
+                malformed = decoded.malformed.toLong(),
                 sentAt = call.request.header(IngestHeaders.SENT)?.toLongOrNull(),
                 runId = call.request.header(IngestHeaders.RUN).orEmpty(),
             )
@@ -128,6 +131,24 @@ public fun Route.ingestRoutes() {
                 suppressedKeys = budget.suppressedFor(service),
             )
         call.respondJson(HttpStatusCode.Accepted, TracyJson.encodeToString(response))
+    }
+}
+
+/**
+ * The refusal still goes out when counting it fails: a database that cannot take one counter row is
+ * not a reason to answer a `413` with a `500`, and the agent's decision rests on the status alone.
+ */
+@Suppress(
+    "ktlint:kapkan:swallowed-failure",
+    "a count that could not be written must not change the answer the sender acts on",
+)
+private suspend fun IngestBatchUseCase.countRefusal(service: String) {
+    try {
+        refused(service)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Throwable) {
+        // The refusal goes out regardless.
     }
 }
 
