@@ -159,5 +159,13 @@ log.error("payment provider rejected", cause = e) {
   уже выданный логгер принадлежит старой. На Linux такой границы нет — direct-логгер читает
   аппендер в момент записи. Вызывать `captureKotlinLogging()` до первого логгера (research §1.4,
   M-149).
+* **Без перехвата сервис отдаёт спаны и ни одной записи.** `install(Tracy)` пишет только спан
+  запроса; строки, которые сервис пишет своим логированием, попадают в tracy лишь через
+  `captureKotlinLogging()` на Native или `TracyLogbackAppender` на JVM. Снаружи такой сервис
+  выглядит подключённым: батчи идут, `producedBytes` растёт, `storedRecords = 0`. Так прожили шесть
+  недель konekt-server и прод-производители, у которых при переезде на Native перехват остался в
+  JVM-сборке (M-150). Логгер Ktor на Native (`application.log`, `KtorSimpleLogger`) не
+  kotlin-logging и не перехватывается вовсе. Шаг перехвата — в быстром старте README, проверяется
+  `agent-ktor-server/src/{jvmTest,nativeTest}/.../ReadmeCaptureTest.kt`.
 * **`Appender.log` не suspend** и trace id в себе не несёт — корреляция для перехваченных чужих
   логов доступна только там, где её удаётся достать иначе (research §1.3).

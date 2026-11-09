@@ -43,6 +43,8 @@ kotlin {
         }
         nativeTest.dependencies {
             implementation(ktorLibs.client.curl)
+            // The README's capture step is kotlin-logging's; `:agent` keeps it `implementation`.
+            implementation(libs.kotlin.logging)
         }
     }
 }

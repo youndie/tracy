@@ -96,6 +96,33 @@ val delivery = startTracyDelivery(tracy, config)
 install(Tracy) { agent = tracy }  // incoming spans, trace context, tail sampling
 ```
 
+Then attach tracy to the logging the service already does. **Skip this and tracy receives spans and
+not a single log record**: the plugin writes the span of each request and nothing else, so the
+service looks connected and every line it logs stays in stdout. On Kotlin/Native that is
+kotlin-logging:
+
+```kotlin
+tracy.captureKotlinLogging()  // nativeMain; on macOS and iOS, before the first logger is created
+```
+
+On the JVM it is an SLF4J appender, attached next to the ones `logback.xml` already has:
+
+```kotlin
+val context = LoggerFactory.getILoggerFactory() as LoggerContext
+val appender =
+    TracyLogbackAppender(tracy).apply {
+        this.context = context
+        start()
+    }
+context.getLogger(Logger.ROOT_LOGGER_NAME).addAppender(appender)
+```
+
+A captured line carries no trace — SLF4J and kotlin-logging have none to give — so it skips tail
+sampling and is sent whole. At `INFO` that can be every line of every request; a `ThresholdFilter`
+at `WARN` on the appender keeps what tracy keeps from every request anyway. On Kotlin/Native,
+Ktor's own logger (`application.log`, `KtorSimpleLogger`) is not kotlin-logging and is not
+captured at all: a native service that logs through it sends spans only, with the capture on.
+
 The client plugin belongs to the `HttpClient` you make outgoing calls with — that is what makes
 the chain continue on the other side:
 
