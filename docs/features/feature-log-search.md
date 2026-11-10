@@ -121,7 +121,7 @@ tracy неверна, и API не должен её подразумевать.
 |---|---|
 | `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/db/Migrate.kt` — схема и миграции |
 | `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/db/LogRepository.kt` — вставка батчем, запросы |
-| `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/template/Normalizer.kt` — маскирование |
+| `:shared` | `shared/src/commonMain/kotlin/io/github/youndie/tracy/template/Normalizer.kt` — маскирование; зовут и сервер (шаблон записи), и агент (счётчик пойманной строки, M-155) |
 | `:server` | `server/src/commonMain/kotlin/io/github/youndie/tracy/retention/` — партиции и вытеснение |
 
 ## 5. Сценарии

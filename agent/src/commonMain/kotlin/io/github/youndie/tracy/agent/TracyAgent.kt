@@ -1,5 +1,6 @@
 package io.github.youndie.tracy.agent
 
+import io.github.youndie.tracy.template.Normalizer
 import io.github.youndie.tracy.wire.BatchLine
 import io.github.youndie.tracy.wire.EntityRef
 import io.github.youndie.tracy.wire.EntityRefDeduplicator
@@ -73,7 +74,15 @@ public class TracyAgent(
         val redactedFields = config.redactor.redactFields(builder.fields())
 
         // 2. Count. Exempt from sampling, subject to the level threshold (research D13).
-        counters.increment(redactedMessage.text, level, now)
+        //
+        //    A captured line is counted under its MASKED text, the one the server files its record
+        //    under (M-155). Its framework substituted the values before tracy saw it, so the raw
+        //    text is a template per value: "Started 73 definitions in 0.716 ms" on every start, a
+        //    pool's object hash on every connection — counters that never add up and a template
+        //    table that grows with traffic, under ids no record shares. A structured call is its
+        //    own template and is counted as written. The cost lands on captured lines only.
+        val counted = if (untrusted) Normalizer.normalize(redactedMessage.text) else redactedMessage.text
+        counters.increment(counted, level, now)
 
         val redactedNames =
             buildList {

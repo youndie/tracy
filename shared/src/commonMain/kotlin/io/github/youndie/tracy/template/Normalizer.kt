@@ -1,4 +1,4 @@
-package io.github.youndie.tracy.server.template
+package io.github.youndie.tracy.template
 
 /**
  * Turns an interpolated message into a template by masking its variable parts.
