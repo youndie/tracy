@@ -59,7 +59,15 @@ server:
   # 0.3.8 stops the health checks before the SQLite pool closes (#78). The check loop runs
   # `SELECT 1` through the pool but was stopped in the stage after it, so a check could start
   # against a closed pool during shutdown. No setting changes.
-  version: 0.3.8
+  #
+  # 0.3.9 is M14 and M15. `list_services` stops calling spans-without-records normal and says it
+  # (`storedSpans`, `spansWithoutRecords`, M-151), and counts per service what reached tracy and was
+  # lost there (`malformedLines`, `refusedBatches`, M-152) — schema migration V6, two columns on
+  # `service_produced`, forward only. `synchronous=NORMAL` reaches every pooled connection (#41).
+  # From M14: client keys that write only into `app:` services (#86, #89) and the MCP screen on an
+  # app's logger and span names (#85, #88). Client keys are off unless `TRACY_CLIENT_KEYS` is set;
+  # no setting is required.
+  version: 0.3.9
   resources:
     requests:
       cpu: "50m"
