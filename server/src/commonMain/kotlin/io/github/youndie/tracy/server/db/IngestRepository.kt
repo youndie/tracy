@@ -5,7 +5,7 @@ import io.github.smyrgeorge.sqlx4k.Statement
 import io.github.smyrgeorge.sqlx4k.impl.coroutines.TransactionContext
 import io.github.smyrgeorge.sqlx4k.impl.extensions.asLong
 import io.github.smyrgeorge.sqlx4k.sqlite.ISQLite
-import io.github.youndie.tracy.server.template.Normalizer
+import io.github.youndie.tracy.template.Normalizer
 import io.github.youndie.tracy.wire.BatchLine
 import io.github.youndie.tracy.wire.EntityRef
 import io.github.youndie.tracy.wire.LogRecord

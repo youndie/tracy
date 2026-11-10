@@ -1,4 +1,4 @@
-package io.github.youndie.tracy.server.template
+package io.github.youndie.tracy.template
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
